@@ -13,6 +13,7 @@
 - Pg Dn - prev level
 - Alt F4 - exit
 
-## Cross compiling levels
+## Building
 
-setenv native, nmake levels, setenv target, nmake all
+- make levels
+- make
