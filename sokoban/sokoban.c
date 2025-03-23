@@ -51,7 +51,7 @@ int playerY = 1;
 
 /* Level management */
 char currentLevel[100] = "";
-char levelFiles[50][100];  /* Array to store level file paths */
+char levelFiles[100][100];  /* Array to store level file paths */
 int numLevels = 0;         /* Number of levels found */
 int currentLevelIndex = 0; /* Index of current level in the levelFiles array */
 
@@ -93,7 +93,7 @@ void ScanLevelFiles() {
             /* Add file to the levels array */
             sprintf(levelFiles[numLevels], "levels/%s", findData.cFileName);
             numLevels++;
-        } while (FindNextFile(hFind, &findData) && numLevels < 50);
+        } while (FindNextFile(hFind, &findData) && numLevels < 100);
         
         FindClose(hFind);
         
