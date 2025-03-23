@@ -16,6 +16,9 @@
 #define IDB_WALL 205
 #define IDI_SOKOBAN 101
 
+/* Level resources */
+#include "levels.h"
+
 /* Game constants */
 #define CELL_SIZE 32
 #define GRID_ROWS 20
@@ -71,43 +74,30 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 /* String comparison function for qsort */
 int CompareStrings(const void *a, const void *b) {
-    return strcmp((const char *)a, (const char *)b);
+    return strcmp(*(const char **)a, *(const char **)b);
 }
 
-/* Scan the levels directory and populate the levelFiles array */
+/* Initialize the level list from embedded resources */
 void ScanLevelFiles() {
-    WIN32_FIND_DATA findData;
-    HANDLE hFind;
-    char searchPath[100];
+    int i;
+    char levelName[20];
     
     /* Reset level count */
-    numLevels = 0;
+    numLevels = NUM_LEVELS;
     
-    /* Set search path */
-    strcpy(searchPath, "levels\\*.sok");
+    /* Generate level names based on resource IDs */
+    for (i = 0; i < numLevels; i++) {
+        sprintf(levelName, "Level %d", i);
+        strcpy(levelFiles[i], levelName);
+    }
     
-    /* Find first .sok file */
-    hFind = FindFirstFile(searchPath, &findData);
-    if (hFind != INVALID_HANDLE_VALUE) {
-        do {
-            /* Add file to the levels array */
-            sprintf(levelFiles[numLevels], "levels/%s", findData.cFileName);
-            numLevels++;
-        } while (FindNextFile(hFind, &findData) && numLevels < 100);
-        
-        FindClose(hFind);
-        
-        /* Sort the level filenames alphabetically */
-        qsort(levelFiles, numLevels, sizeof(levelFiles[0]), CompareStrings);
-        
-        /* Find current level index */
-        {
-            int i;
-            for (i = 0; i < numLevels; i++) {
-                if (strcmp(currentLevel, levelFiles[i]) == 0) {
-                    currentLevelIndex = i;
-                    break;
-                }
+    /* Find current level index */
+    {
+        int i;
+        for (i = 0; i < numLevels; i++) {
+            if (strcmp(currentLevel, levelFiles[i]) == 0) {
+                currentLevelIndex = i;
+                break;
             }
         }
     }
@@ -126,17 +116,38 @@ BOOL LoadNextLevel() {
     return LoadLevel(levelFiles[currentLevelIndex]);
 }
 
-/* Load a level from a .sok file */
-BOOL LoadLevel(const char *filename)
+/* Load a level from embedded resource */
+BOOL LoadLevel(const char *levelName)
 {
-    FILE *file;
-    char line[100];
+    HRSRC hResInfo;
+    HGLOBAL hResData;
+    LPVOID pData;
+    DWORD resSize;
+    char *levelData, *line, *nextLine;
     int row = 0, col = 0;
     int i, j;
+    int levelIndex;
     HWND hwnd;
     
-    /* Save the current level filename */
-    strcpy(currentLevel, filename);
+    /* Save the current level name */
+    strcpy(currentLevel, levelName);
+    
+    /* Convert level name to resource index */
+    if (sscanf(levelName, "Level %d", &levelIndex) != 1) {
+        /* If not in our format, find by string comparison */
+        for (i = 0; i < numLevels; i++) {
+            if (strcmp(levelName, levelFiles[i]) == 0) {
+                levelIndex = i;
+                break;
+            }
+        }
+    }
+    
+    /* Verify level index is valid */
+    if (levelIndex < 0 || levelIndex >= numLevels) {
+        MessageBox(NULL, "Invalid level index!", "Error", MB_ICONERROR | MB_OK);
+        return FALSE;
+    }
     
     /* Reset the grid */
     for (i = 0; i < GRID_ROWS; i++) {
@@ -145,51 +156,115 @@ BOOL LoadLevel(const char *filename)
         }
     }
     
-    /* Open the level file */
-    file = fopen(filename, "r");
-    if (!file) {
-        MessageBox(NULL, "Failed to open level file!", "Error", MB_ICONERROR | MB_OK);
+    /* Load level resource by ID */
+    hResInfo = FindResource(NULL, MAKEINTRESOURCE(3000 + levelIndex), RT_RCDATA);
+    
+    if (!hResInfo) {
+        MessageBox(NULL, "Failed to find level resource!", "Error", MB_ICONERROR | MB_OK);
         return FALSE;
     }
+    
+    hResData = LoadResource(NULL, hResInfo);
+    if (!hResData) {
+        MessageBox(NULL, "Failed to load level resource!", "Error", MB_ICONERROR | MB_OK);
+        return FALSE;
+    }
+    
+    pData = LockResource(hResData);
+    if (!pData) {
+        MessageBox(NULL, "Failed to lock level resource!", "Error", MB_ICONERROR | MB_OK);
+        return FALSE;
+    }
+    
+    resSize = SizeofResource(NULL, hResInfo);
+    
+    /* Create a null-terminated copy of the resource data */
+    levelData = (char *)malloc(resSize + 1);
+    if (!levelData) {
+        MessageBox(NULL, "Out of memory!", "Error", MB_ICONERROR | MB_OK);
+        return FALSE;
+    }
+    
+    memcpy(levelData, pData, resSize);
+    levelData[resSize] = '\0';
+    
+    /* Level data loaded successfully */
     
     /* First pass: determine level dimensions */
     levelWidth = 0;
     levelHeight = 0;
     
-    /* Read the file line by line to determine dimensions */
-    while (fgets(line, sizeof(line), file) && levelHeight < GRID_ROWS) {
-        col = 0;
-        
-        for (i = 0; line[i] != '\0' && line[i] != '\n' && line[i] != '\r'; i++) {
-            if (line[i] == '#' || line[i] == '@' || line[i] == '+' || line[i] == '$' || 
-                line[i] == '*' || line[i] == '.' || line[i] == ' ') {
-                col++;
+    line = levelData;
+    while (line && *line) {
+        /* Find end of line */
+        nextLine = strpbrk(line, "\r\n");
+        if (nextLine) {
+            char *endLine = nextLine; /* Save position for measuring line length */
+            
+            /* Skip all newline characters */
+            while (*nextLine == '\r' || *nextLine == '\n') {
+                nextLine++;
             }
+            
+            /* Null-terminate this line for processing */
+            *endLine = '\0';
         }
         
+        /* Measure line length */
+        col = strlen(line);
+        
         if (col > 0) {
+            /* Count only lines with content */
             if (col > levelWidth) {
                 levelWidth = col;
             }
             levelHeight++;
         }
+        
+        /* Move to next line or break if no more lines */
+        if (!nextLine || !*nextLine) {
+            break;
+        }
+        line = nextLine;
     }
     
-    /* Make sure we have valid dimensions */
-    if (levelWidth <= 0 || levelHeight <= 0) {
-        fclose(file);
-        MessageBox(NULL, "Invalid level format or empty level!", "Error", MB_ICONERROR | MB_OK);
+    /* Level dimensions now determined */
+    
+    /* CRITICAL FIX: Re-read the data for the second pass */
+    /* Reset the resource pointer and parse again */
+    free(levelData);
+    
+    /* Create a fresh null-terminated copy of the resource data */
+    levelData = (char *)malloc(resSize + 1);
+    if (!levelData) {
+        MessageBox(NULL, "Out of memory!", "Error", MB_ICONERROR | MB_OK);
         return FALSE;
     }
     
-    /* Rewind file to start reading from the beginning again */
-    rewind(file);
+    memcpy(levelData, pData, resSize);
+    levelData[resSize] = '\0';
     
     /* Second pass: actually load the level */
     row = 0;
-    while (fgets(line, sizeof(line), file) && row < levelHeight) {
-        col = 0;
+    line = levelData;
+    
+    while (line && *line && row < levelHeight) {
+        nextLine = strpbrk(line, "\r\n");
+        if (nextLine) {
+            char *endLine = nextLine;
+            
+            /* Skip all newline characters */
+            while (*nextLine == '\r' || *nextLine == '\n') {
+                nextLine++;
+            }
+            
+            /* Null-terminate this line for processing */
+            *endLine = '\0';
+        }
         
+        /* Process row */
+        
+        col = 0;
         for (i = 0; line[i] != '\0' && col < levelWidth; i++) {
             switch (line[i]) {
                 case '#': /* Wall */
@@ -231,11 +306,8 @@ BOOL LoadLevel(const char *filename)
                     col++;
                     break;
                     
-                case '\n': /* New line */
-                case '\r': /* Carriage return */
-                    break;
-                    
                 default:
+                    /* Skip unknown characters */
                     break;
             }
         }
@@ -246,12 +318,18 @@ BOOL LoadLevel(const char *filename)
             col++;
         }
         
-        if (col > 0) {
-            row++;
+        row++;
+        
+        /* Move to next line or break if no more lines */
+        if (!nextLine || !*nextLine) {
+            break;
         }
+        line = nextLine;
     }
     
-    fclose(file);
+    /* Level loading complete */
+    
+    free(levelData);
     
     /* Resize the window to match the level dimensions plus small pixel margin */
     hwnd = FindWindow("SokobanClass", NULL);
@@ -259,12 +337,12 @@ BOOL LoadLevel(const char *filename)
         /* Window size includes borders (16 for width, 38 for height on standard Windows) 
            Plus a few pixels of margin on all sides */
         SetWindowPos(hwnd, NULL, 0, 0, 
-                     CELL_SIZE * levelWidth + 16 + 10, /* 5px margin on each side */
-                     CELL_SIZE * levelHeight + 38 + 10, /* 5px margin on each side */
+                     CELL_SIZE * levelWidth + 40, /* extra space for margin */
+                     CELL_SIZE * levelHeight + 60, /* extra space for margin */
                      SWP_NOMOVE | SWP_NOZORDER);
         
         /* Update the window title with the current level name */
-        UpdateWindowTitle(hwnd, filename);
+        UpdateWindowTitle(hwnd, levelName);
     }
     
     return TRUE;
@@ -505,8 +583,8 @@ void DrawGrid(HDC hdc)
     {
         for(j = 0; j < levelWidth; j++)
         {
-            int x = j * CELL_SIZE + 5; /* 5px margin */
-            int y = i * CELL_SIZE + 5; /* 5px margin */
+            int x = j * CELL_SIZE + 10; /* 10px margin */
+            int y = i * CELL_SIZE + 10; /* 10px margin */
             
             cellRect.left = x;
             cellRect.top = y;
@@ -641,32 +719,19 @@ void MovePlayer(HWND hwnd, int dx, int dy)
     InvalidateRect(hwnd, NULL, FALSE);
 }
 
-/* Update window title with level basename */
-void UpdateWindowTitle(HWND hwnd, const char *levelPath)
+/* Update window title with level name */
+void UpdateWindowTitle(HWND hwnd, const char *levelName)
 {
     char title[256];
-    char filenameCopy[100];
-    char *dot;
-    const char *basename = levelPath;
-    const char *lastSlash;
-    const char *lastBackslash;
-    
-    lastSlash = strrchr(levelPath, '/');
-    lastBackslash = strrchr(levelPath, '\\');
-    
-    /* Find the filename part (after the last slash or backslash) */
-    if (lastSlash && lastSlash > basename)
-        basename = lastSlash + 1;
-    if (lastBackslash && lastBackslash > basename)
-        basename = lastBackslash + 1;
-    
-    /* Remove the extension */
-    strcpy(filenameCopy, basename);
-    dot = strrchr(filenameCopy, '.');
-    if (dot) *dot = '\0';
+    int levelIndex;
     
     /* Create window title with the level name */
-    sprintf(title, "Sokoban - %s", filenameCopy);
+    if (sscanf(levelName, "Level %d", &levelIndex) == 1) {
+        /* If using our internal format, add 1 to make it 1-based for display */
+        sprintf(title, "Sokoban - Level %d", levelIndex + 1);
+    } else {
+        sprintf(title, "Sokoban - %s", levelName);
+    }
     
     /* Set the window title */
     SetWindowText(hwnd, title);
@@ -780,6 +845,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             InvalidateRect(hwnd, NULL, FALSE);
             break;
             
+        /* Remove scrollbar handling */
+            
         default:
             return DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -835,14 +902,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 0;
     }
 
-    /* Create the Window with size based on level dimensions (initial size) */
+    /* Create the Window with level dimensions */
     hwnd = CreateWindowEx(
         WS_EX_CLIENTEDGE,
         "SokobanClass",
         "Sokoban",  /* Initial title, will be updated after creation */
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 
-        CELL_SIZE * levelWidth + 16 + 10, CELL_SIZE * levelHeight + 38 + 10,
+        CELL_SIZE * levelWidth + 50, /* Window borders + margin */
+        CELL_SIZE * levelHeight + 70, /* Window borders + margin */
         NULL, NULL, hInstance, NULL);
 
     if(hwnd == NULL)

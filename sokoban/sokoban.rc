@@ -17,3 +17,6 @@ IDB_TRUCK_EMPTY BITMAP "truck-empty.bmp"
 IDB_TRUCK_FULL BITMAP "truck-full.bmp"
 IDB_WALL BITMAP "wall.bmp"
 IDI_SOKOBAN ICON "forklift.ico"
+
+/* Level Resources - included from generated file */
+#include "levels.rc"
