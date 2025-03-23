@@ -1,0 +1,19 @@
+#include <windows.h>
+
+/* Bitmaps */
+#define IDB_FORKLIFT 201
+#define IDB_CRATE 202
+#define IDB_TRUCK_EMPTY 203
+#define IDB_TRUCK_FULL 204
+#define IDB_WALL 205
+
+/* Icon */
+#define IDI_SOKOBAN 101
+
+/* Resources */
+IDB_FORKLIFT BITMAP "forklift.bmp"
+IDB_CRATE BITMAP "crate.bmp"
+IDB_TRUCK_EMPTY BITMAP "truck-empty.bmp"
+IDB_TRUCK_FULL BITMAP "truck-full.bmp"
+IDB_WALL BITMAP "wall.bmp"
+IDI_SOKOBAN ICON "forklift.ico"
