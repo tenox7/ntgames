@@ -18,4 +18,4 @@ sokoban.res: sokoban.rc forklift.bmp crate.bmp truck-empty.bmp truck-full.bmp wa
 	rc.exe sokoban.rc
 
 clean:
-	-del /f /q sokoban.exe sokoban.obj sokoban.res genlevels.obj genlevels.exe levels.h levels.rc *.pdb *.ilk del *.bak *.tmp err.out
+	-del /f /q sokoban.exe sokoban.obj sokoban.res genlevels.obj levels.h levels.rc *.pdb *.ilk del *.bak *.tmp err.out
