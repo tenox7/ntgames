@@ -573,8 +573,8 @@ void DrawGrid(HDC hdc)
     memBitmap = CreateCompatibleBitmap(hdc, windowWidth, windowHeight);
     oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
     
-    /* Clear background with light gray */
-    brush = CreateSolidBrush(RGB(220, 220, 220));
+    /* Clear background with white */
+    brush = CreateSolidBrush(RGB(255, 255, 255));
     FillRect(memDC, &clientRect, brush);
     DeleteObject(brush);
     
