@@ -21,19 +21,19 @@ int main() {
     int numLevels = 0;
     int i;
     FILE *rcFile, *headerFile;
-    
+
     printf("Generating level resources...\n");
-    
+
     /* Set search path */
     strcpy(searchPath, "levels\\*.sok");
-    
+
     /* Find first .sok file */
     hFind = _findfirst(searchPath, &findData);
     if (hFind == -1) {
         printf("No level files found!\n");
         return 1;
     }
-    
+
     /* Collect all level files */
     do {
         if (numLevels < MAX_LEVELS) {
@@ -42,19 +42,19 @@ int main() {
             numLevels++;
         }
     } while (_findnext(hFind, &findData) == 0 && numLevels < MAX_LEVELS);
-    
+
     _findclose(hFind);
-    
+
     /* Sort the level filenames alphabetically */
     qsort(levelFilePointers, numLevels, sizeof(char *), CompareStrings);
-    
+
     /* Create RC file for levels */
     rcFile = fopen("levels.rc", "w");
     if (!rcFile) {
         printf("Failed to create levels.rc!\n");
         return 1;
     }
-    
+
     /* Create header file for level IDs */
     headerFile = fopen("levels.h", "w");
     if (!headerFile) {
@@ -62,46 +62,46 @@ int main() {
         printf("Failed to create levels.h!\n");
         return 1;
     }
-    
+
     /* Write header file content */
     fprintf(headerFile, "/* Auto-generated level resource IDs */\n");
     fprintf(headerFile, "#ifndef LEVELS_H\n");
     fprintf(headerFile, "#define LEVELS_H\n\n");
     fprintf(headerFile, "#define IDR_LEVEL_BASE 3000\n");
     fprintf(headerFile, "#define NUM_LEVELS %d\n\n", numLevels);
-    
+
     /* Write RC file content */
     fprintf(rcFile, "/* Auto-generated level resources */\n");
-    
+
     /* Generate resource definitions for each level */
     for (i = 0; i < numLevels; i++) {
         /* For .h file, define both the individual resource IDs and the calculation method */
         fprintf(headerFile, "#define IDR_LEVEL_%d %d\n", i, 3000 + i);
-        
+
         /* For .rc file, use the same resource identifiers - make sure full path uses backslashes */
         {
             char correctedPath[MAX_PATH];
             char *p;
-            
+
             /* Copy the path */
             strcpy(correctedPath, levelFilePointers[i]);
-            
+
             /* Convert any forward slashes to backslashes */
             for (p = correctedPath; *p; p++) {
                 if (*p == '/') {
                     *p = '\\';
                 }
             }
-            
+
             fprintf(rcFile, "%d RCDATA \"%s\"\n", 3000 + i, correctedPath);
         }
     }
-    
+
     fprintf(headerFile, "\n#endif /* LEVELS_H */\n");
-    
+
     fclose(rcFile);
     fclose(headerFile);
-    
+
     printf("Generated resources for %d level files\n", numLevels);
     return 0;
 }
