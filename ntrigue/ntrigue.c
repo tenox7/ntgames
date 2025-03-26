@@ -7,6 +7,10 @@
 
 #pragma comment(lib, "winmm.lib") /* Link with winmm.lib for timer functions */
 
+/* Global variables for CPU info */
+char cpuArchStr[64];
+char procTypeStr[64];
+
 /* Define DC_PEN and DC_BRUSH for older Windows SDK */
 #ifndef DC_PEN
 #define DC_PEN 19
@@ -148,6 +152,53 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     /* Initialize random seed */
     srand((unsigned)time(NULL));
+
+    /* Get CPU information */
+    {
+        SYSTEM_INFO sysInfo;
+        GetSystemInfo(&sysInfo);
+        
+        /* Determine CPU architecture */
+        switch(sysInfo.wProcessorArchitecture) {
+            case PROCESSOR_ARCHITECTURE_INTEL:
+                lstrcpy(cpuArchStr, "x86");
+                break;
+            case PROCESSOR_ARCHITECTURE_MIPS:
+                lstrcpy(cpuArchStr, "MIPS");
+                break;
+            case PROCESSOR_ARCHITECTURE_ALPHA:
+                lstrcpy(cpuArchStr, "Alpha");
+                break;
+            case PROCESSOR_ARCHITECTURE_PPC:
+                lstrcpy(cpuArchStr, "PowerPC");
+                break;
+            default:
+                lstrcpy(cpuArchStr, "Unknown");
+                break;
+        }
+        
+        /* Determine processor type */
+        switch(sysInfo.dwProcessorType) {
+            case PROCESSOR_INTEL_386:
+                lstrcpy(procTypeStr, "Intel 386");
+                break;
+            case PROCESSOR_INTEL_486:
+                lstrcpy(procTypeStr, "Intel 486");
+                break;
+            case PROCESSOR_INTEL_PENTIUM:
+                lstrcpy(procTypeStr, "Intel Pentium");
+                break;
+            case PROCESSOR_MIPS_R4000:
+                lstrcpy(procTypeStr, "MIPS R4000");
+                break;
+            case PROCESSOR_ALPHA_21064:
+                lstrcpy(procTypeStr, "Alpha 21064");
+                break;
+            default:
+                wsprintf(procTypeStr, "Type %d", sysInfo.dwProcessorType);
+                break;
+        }
+    }
 
     /* Initialize game state */
     gameOver = 0;
@@ -327,11 +378,12 @@ void DrawScene(HDC hdc)
     char windowTitle[80];
     int i;
 
-    /* Update window title with score and level */
+    /* Update window title with score, level, and CPU info */
     if (gameStarted && gameOver) {
-        wsprintf(windowTitle, "NT Rigue - GAME OVER - Final Score: %d - Press ESC to Exit", score);
+        wsprintf(windowTitle, "SYSTEM ERROR - Memory_Management_Exception 0x0000000A");
     } else {
-        wsprintf(windowTitle, "NT Rigue - Score: %d  Level: %d  Health: %d - ESC/Q to Exit", score, level, playerHealth);
+        wsprintf(windowTitle, "NT Rigue [%s %s] - Score: %d  Level: %d  Health: %d - ESC/Q to Exit", 
+                cpuArchStr, procTypeStr, score, level, playerHealth);
     }
     SetWindowText(hwnd, windowTitle);
 
@@ -344,6 +396,46 @@ void DrawScene(HDC hdc)
 
     /* Draw starry background */
     DrawStars(hdc);
+
+    /* Draw health bar at the top of the screen as boxes */
+    {
+        int i;
+        int boxSize = 20;   /* Size of each health box */
+        int boxPadding = 5; /* Space between boxes */
+        int startX = 20;    /* Starting X position */
+        int startY = 20;    /* Y position from top */
+        int maxDisplayHealth = 3; /* Show only 3 boxes, matching max health */
+        HBRUSH healthBrush, healthOutlineBrush;
+        HPEN healthOutline;
+        
+        /* Create brushes for health boxes */
+        healthBrush = CreateSolidBrush(RGB(30, 200, 30));        /* Green for active health */
+        healthOutlineBrush = CreateSolidBrush(RGB(100, 100, 100)); /* Gray for empty health */
+        healthOutline = CreatePen(PS_SOLID, 2, RGB(200, 200, 200));
+        
+        /* Draw health boxes */
+        for (i = 0; i < maxDisplayHealth; i++) {
+            /* Select appropriate brush based on current health */
+            if (i < playerHealth) {
+                SelectObject(hdc, healthBrush);
+            } else {
+                SelectObject(hdc, healthOutlineBrush);
+            }
+            
+            /* Draw the health box */
+            SelectObject(hdc, healthOutline);
+            Rectangle(hdc, 
+                     startX + (i * (boxSize + boxPadding)), 
+                     startY, 
+                     startX + (i * (boxSize + boxPadding)) + boxSize, 
+                     startY + boxSize);
+        }
+        
+        /* Clean up */
+        DeleteObject(healthBrush);
+        DeleteObject(healthOutlineBrush);
+        DeleteObject(healthOutline);
+    }
 
     /* Draw player ship if not game over */
     if (!gameOver) {
@@ -1063,62 +1155,101 @@ void DrawScene(HDC hdc)
         }
     }
     
-    /* Display Game Over message */
+    /* Display Game Over message as a Windows NT BSOD */
     if (gameStarted && gameOver) {
-        char gameOverText[20] = "GAME OVER";
-        char finalScoreText[30];
-        char restartText[50] = "Click anywhere or press any key to restart";
-        char exitText[30] = "Press ESC or Q to quit";
-        HFONT hFont, hOldFont, smallFont;
-        SIZE textSize;
-        int textWidth, textX;
+        RECT rect;
+        HFONT consoleFont, oldFont;
+        char bsodText[30][128]; /* Array to hold multiple lines of BSOD text */
+        int i, yPos;
         
-        /* Create a font for Game Over message */
-        hFont = CreateFont(36, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                         DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial");
-        hOldFont = SelectObject(hdc, hFont);
+        /* Create full blue background for BSOD */
+        rect.left = 0;
+        rect.top = 0;
+        rect.right = WINDOW_WIDTH;
+        rect.bottom = WINDOW_HEIGHT;
         
-        /* Display Game Over text */
-        SetTextColor(hdc, RGB(255, 50, 50));
+        /* Fill with classic BSOD blue color */
+        FillRect(hdc, &rect, CreateSolidBrush(RGB(0, 0, 170)));
+        
+        /* Create console-like font for BSOD text */
+        consoleFont = CreateFont(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                          ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                          DEFAULT_QUALITY, FIXED_PITCH | FF_DONTCARE, "Courier New");
+        oldFont = SelectObject(hdc, consoleFont);
+        
+        /* White text on blue background */
+        SetTextColor(hdc, RGB(255, 255, 255));
         SetBkMode(hdc, TRANSPARENT);
         
-        /* Center the text */
-        GetTextExtentPoint32(hdc, gameOverText, lstrlen(gameOverText), &textSize);
-        textWidth = textSize.cx;
-        textX = (WINDOW_WIDTH - textWidth) / 2;
-        TextOut(hdc, textX, WINDOW_HEIGHT / 2 - 50, gameOverText, lstrlen(gameOverText));
+        /* Prepare BSOD text content */
+        lstrcpy(bsodText[0], "");
+        lstrcpy(bsodText[1], "*** STOP: 0x0000000A (0xDEADC0DE,0x00000000,0x00000000,0x00000000)");
+        lstrcpy(bsodText[2], "GAME OVER - IRQL_NOT_LESS_OR_EQUAL");
+        lstrcpy(bsodText[3], "");
+        lstrcpy(bsodText[4], "The system detected an invalid or unaligned access to a memory location.");
+        lstrcpy(bsodText[5], "The request could not be performed because of an I/O error.");
         
-        /* Show final score */
-        wsprintf(finalScoreText, "Final Score: %d", score);
-        GetTextExtentPoint32(hdc, finalScoreText, lstrlen(finalScoreText), &textSize);
-        textWidth = textSize.cx;
-        textX = (WINDOW_WIDTH - textWidth) / 2;
-        TextOut(hdc, textX, WINDOW_HEIGHT / 2 + 10, finalScoreText, lstrlen(finalScoreText));
+        /* Format score into technical-looking hex values */
+        wsprintf(bsodText[6], "Player error at address 0x%08X, score=0x%08X, level=%d", playerX + playerY, score, level);
         
-        /* Create a smaller font for instructions */
-        SelectObject(hdc, hOldFont);  /* Deselect the big font */
-        smallFont = CreateFont(24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                         DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial");
-        SelectObject(hdc, smallFont);
+        lstrcpy(bsodText[7], "");
+        lstrcpy(bsodText[8], "If this is the first time you've seen this error screen, restart your game.");
+        lstrcpy(bsodText[9], "If this screen appears again, follow these steps:");
+        lstrcpy(bsodText[10], "");
+        lstrcpy(bsodText[11], "Check for viruses on your computer. Remove any newly installed alien hardware.");
+        lstrcpy(bsodText[12], "Check that your weapons systems are properly configured and terminated.");
+        lstrcpy(bsodText[13], "Run CHKDSK /F to check for hard drive corruption, then restart your game.");
+        lstrcpy(bsodText[14], "");
+        lstrcpy(bsodText[15], "Technical information:");
+        lstrcpy(bsodText[16], "");
         
-        /* Instructions to restart */
-        GetTextExtentPoint32(hdc, restartText, lstrlen(restartText), &textSize);
-        textWidth = textSize.cx;
-        textX = (WINDOW_WIDTH - textWidth) / 2;
-        TextOut(hdc, textX, WINDOW_HEIGHT / 2 + 60, restartText, lstrlen(restartText));
+        /* Generate random hex dumps that look like memory addresses */
+        wsprintf(bsodText[17], "*** BYTES_PROCESSED: 0x%08X  ENEMY_COUNT: 0x%04X  SECTOR: 0x%04X", frameCount * 1024, MAX_ENEMIES, rand() % 0xFFFF);
+        wsprintf(bsodText[18], "*** MEMORY_MANAGEMENT: 0x%08X  STACK_OVERFLOW: 0x%08X", 0xBAADF00D, 0xDEADBEEF);
+        wsprintf(bsodText[19], "*** PROCESS_NAME: NTRIGUE.EXE  PID: 0x%04X  START_ADDR: 0x%08X", GetCurrentProcessId(), 0x01001000);
         
-        /* Exit instructions */
-        GetTextExtentPoint32(hdc, exitText, lstrlen(exitText), &textSize);
-        textWidth = textSize.cx;
-        textX = (WINDOW_WIDTH - textWidth) / 2;
-        TextOut(hdc, textX, WINDOW_HEIGHT / 2 + 90, exitText, lstrlen(exitText));
+        {
+            char hexDigits[] = "0123456789ABCDEF";
+            int j;
+            int offset;
+            char *dumpLine;
+            
+            for (i = 20; i < 25; i++) {
+                /* Create random looking memory dump lines */
+                dumpLine = bsodText[i];
+                offset = 0;
+                
+                /* Memory address prefix */
+                offset += wsprintf(dumpLine + offset, "%08X  ", 0x80000000 + (i * 16));
+                
+                /* Generate hex values */
+                for (j = 0; j < 16; j++) {
+                    if (j == 8) /* Extra space in middle */
+                        dumpLine[offset++] = ' ';
+                    
+                    dumpLine[offset++] = hexDigits[rand() % 16];
+                    dumpLine[offset++] = hexDigits[rand() % 16];
+                    dumpLine[offset++] = ' ';
+                }
+                
+                dumpLine[offset] = '\0';
+            }
+        }
         
-        /* Clean up fonts */
-        SelectObject(hdc, hOldFont);  /* Restore original font */
-        DeleteObject(smallFont);
-        DeleteObject(hFont);
+        lstrcpy(bsodText[25], "");
+        lstrcpy(bsodText[26], "* Press any key or click to restart");
+        lstrcpy(bsodText[27], "* Press ESC or Q to quit");
+        
+        /* Display all the text lines */
+        yPos = 30;
+        for (i = 0; i < 28; i++) {
+            TextOut(hdc, 30, yPos, bsodText[i], lstrlen(bsodText[i]));
+            yPos += 20;
+        }
+        
+        /* Clean up */
+        SelectObject(hdc, oldFont);
+        DeleteObject(consoleFont);
     }
 }
 
@@ -1427,11 +1558,11 @@ void UpdateGame(void)
         int newLevel = 1 + score / 1000;
         if (newLevel > level) {
             level = newLevel;
-        /* Give player extra health on level up */
-        if (playerHealth < 5) {  /* Cap health at 5 */
-            playerHealth++;
+            /* Give player extra health on level up */
+            if (playerHealth < 5) {  /* Cap health at 5 */
+                playerHealth++;
+            }
         }
-    }
     }
 }
 
