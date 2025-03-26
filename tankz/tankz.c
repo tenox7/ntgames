@@ -116,6 +116,7 @@ typedef struct {
     BOOL playerActive;   // Is player tank active?
     BOOL playerHitFlashActive; // Is player hit flash effect active?
     int playerHitFlashTimer;   // Timer for player hit flash animation
+    BOOL inputLockActive;  // Block input after death until keys are released
     
     // Camera/Map position
     double cameraX;
@@ -226,6 +227,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     gameState.playerActive = TRUE;
     gameState.playerHitFlashActive = FALSE;
     gameState.playerHitFlashTimer = 0;
+    gameState.inputLockActive = FALSE;
     gameState.cameraX = 0;  // Start with camera at origin
     gameState.cameraY = 0;  // Start with camera at origin
     gameState.lastFrameTime = GetTickCount();
@@ -656,6 +658,9 @@ void DamagePlayerTank()
         gameState.playerActive = FALSE;
         // No need for hit flash if exploding
         gameState.playerHitFlashActive = FALSE;
+        
+        // Add an input lock flag to prevent immediate restart from held keys
+        gameState.inputLockActive = TRUE; // Block input until all keys are released
     }
 }
 
@@ -696,7 +701,6 @@ void DamageEnemyTank(EnemyTank *enemy)
 // Handle player tank respawn
 void RespawnPlayerTank()
 {
-    
     // Reset player tank
     gameState.tankHealth = MAX_HEALTH;
     gameState.playerExploding = FALSE;
@@ -707,17 +711,19 @@ void RespawnPlayerTank()
     // Place player tank on a road
     FindRoadPosition(&gameState.tankX, &gameState.tankY);
     
-    // Reset current session kill count and turn off radar
-    currentSessionKills = 0;
+    // Don't reset kill count - keep the existing score
+    // currentSessionKills = 0; // Removed to keep score across deaths
+    
+    // Turn off radar if it was active
     radarActive = FALSE;
     
-    // Pause the game after respawn to give player a chance to get ready
-    gamePaused = TRUE;
+    // Immediately start gameplay - don't show pause screen
+    gamePaused = FALSE;
     
-    // Reset mouse state to prevent accidental unpausing
+    // Reset mouse state to prevent issues
     mouseWasPressed = FALSE;
     
-    // Update window title with reset kill count
+    // Update window title with current kill count
     UpdateWindowTitle(FindWindow(szWindowClass, NULL));
 }
 
@@ -1745,12 +1751,12 @@ void UpdateGame()
         
         // Add a small delay before accepting input (prevents accidental clicks)
         pauseTimer++;
-        if (pauseTimer < 30) {  // About 1 second at 30fps
+        if (pauseTimer < 10) {  // Reduced wait time to 1/3 second at 30fps for better responsiveness
             return;
         }
         
         // Check for mouse click to unpause
-        if (mouseWasPressed && !mouseIsPressed) {
+        if (mouseIsPressed) {
             gamePaused = FALSE;
             pauseTimer = 0;
         }
@@ -1919,18 +1925,9 @@ void UpdateGame()
         
         // If explosion animation is done, respawn player after delay
         if (gameState.playerExplosionTimer <= 0) {
-            static DWORD playerDeathTime = 0;
-            
-            // Record time of death if we just finished exploding
-            if (playerDeathTime == 0) {
-                playerDeathTime = GetTickCount();
-            }
-            
-            // Check if respawn delay has passed
-            if (GetTickCount() - playerDeathTime > RESPAWN_DELAY) {
-                RespawnPlayerTank();
-                playerDeathTime = 0; // Reset for next death
-            }
+            // Keep the BSOD screen displayed, don't auto-respawn
+            // The respawn will be triggered by WM_KEYDOWN or WM_LBUTTONDOWN
+            gameState.playerExplosionTimer = 1; // Keep at 1 to prevent auto-respawn
         }
     }
     
@@ -2240,13 +2237,61 @@ void WaitForVSync(void)
     lastVSyncTime = GetTickCount();
 }
 
-// Update the window title with the kill count
+// Update the window title with CPU info and game stats
 void UpdateWindowTitle(HWND hWnd)
 {
-    char titleBuffer[100];
+    char titleBuffer[150];
+    char cpuArchStr[64] = "";
+    char procTypeStr[64] = "";
+    SYSTEM_INFO sysInfo;
     
-    // Format the title with the kill count
-    sprintf(titleBuffer, "%s - Enemies Destroyed: %d", szAppName, currentSessionKills);
+    // Get CPU information
+    GetSystemInfo(&sysInfo);
+    
+    // Determine CPU architecture
+    switch(sysInfo.wProcessorArchitecture) {
+        case PROCESSOR_ARCHITECTURE_INTEL:
+            lstrcpy(cpuArchStr, "x86");
+            break;
+        case PROCESSOR_ARCHITECTURE_MIPS:
+            lstrcpy(cpuArchStr, "MIPS");
+            break;
+        case PROCESSOR_ARCHITECTURE_ALPHA:
+            lstrcpy(cpuArchStr, "Alpha");
+            break;
+        case PROCESSOR_ARCHITECTURE_PPC:
+            lstrcpy(cpuArchStr, "PowerPC");
+            break;
+        default:
+            lstrcpy(cpuArchStr, "Unknown");
+            break;
+    }
+    
+    // Determine processor type
+    switch(sysInfo.dwProcessorType) {
+        case PROCESSOR_INTEL_386:
+            lstrcpy(procTypeStr, "Intel 386");
+            break;
+        case PROCESSOR_INTEL_486:
+            lstrcpy(procTypeStr, "Intel 486");
+            break;
+        case PROCESSOR_INTEL_PENTIUM:
+            lstrcpy(procTypeStr, "Intel Pentium");
+            break;
+        case PROCESSOR_MIPS_R4000:
+            lstrcpy(procTypeStr, "MIPS R4000");
+            break;
+        case PROCESSOR_ALPHA_21064:
+            lstrcpy(procTypeStr, "Alpha 21064");
+            break;
+        default:
+            wsprintf(procTypeStr, "Type %d", sysInfo.dwProcessorType);
+            break;
+    }
+    
+    // Format the title with CPU info and kill count
+    sprintf(titleBuffer, "%s [%s %s] - Enemies Destroyed: %d", 
+            szAppName, cpuArchStr, procTypeStr, currentSessionKills);
     
     // Set the window title if window handle is valid
     if (hWnd) {
@@ -2465,31 +2510,97 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             SetTextColor(hBufferDC, RGB(255, 255, 255));
             SetBkMode(hBufferDC, TRANSPARENT);
             
-            // Display game over message when tank is destroyed
+            // Display Game Over message as a Windows NT BSOD
             if (!gameState.playerActive && gameState.playerExploding) {
-                // Only display GAME OVER, removing the "Tank Destroyed! Respawning..." text
+                RECT rect;
+                HFONT consoleFont, oldFont;
+                char bsodText[30][128]; /* Array to hold multiple lines of BSOD text */
+                int i, yPos;
                 
-                // Large GAME OVER text in center of screen
-                gameOverFont = CreateFont(72, 0, 0, 0, FW_BOLD, 0, 0, 0, 
-                                      DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                      DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial");
-                oldFont = SelectObject(hBufferDC, gameOverFont);
+                /* Create full blue background for BSOD */
+                rect.left = 0;
+                rect.top = 0;
+                rect.right = SCREEN_WIDTH;
+                rect.bottom = SCREEN_HEIGHT;
                 
-                gameOverRect.left = 0;
-                gameOverRect.top = SCREEN_HEIGHT/2 - 50;
-                gameOverRect.right = SCREEN_WIDTH;
-                gameOverRect.bottom = SCREEN_HEIGHT/2 + 50;
+                /* Fill with classic BSOD blue color */
+                FillRect(hBufferDC, &rect, CreateSolidBrush(RGB(0, 0, 170)));
                 
-                // Make sure text background is transparent to see the game
+                /* Create console-like font for BSOD text */
+                consoleFont = CreateFont(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                  DEFAULT_QUALITY, FIXED_PITCH | FF_DONTCARE, "Courier New");
+                oldFont = SelectObject(hBufferDC, consoleFont);
+                
+                /* White text on blue background */
+                SetTextColor(hBufferDC, RGB(255, 255, 255));
                 SetBkMode(hBufferDC, TRANSPARENT);
-                SetTextColor(hBufferDC, RGB(255, 0, 0)); // Bright red for GAME OVER
                 
-                // Draw the text centered on screen
-                DrawText(hBufferDC, "GAME OVER", -1, &gameOverRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                /* Prepare BSOD text content - reduced for smaller screen */
+                lstrcpy(bsodText[0], "*** STOP: 0x0000000A (0xDEADC0DE,0x00000000,0x00000000,0x00000000)");
+                lstrcpy(bsodText[1], "GAME OVER - IRQL_NOT_LESS_OR_EQUAL");
+                lstrcpy(bsodText[2], "");
+                lstrcpy(bsodText[3], "The system detected an invalid or unaligned access to a memory location.");
                 
-                // Clean up font
+                /* Format score into technical-looking hex values */
+                wsprintf(bsodText[4], "Tank error at address 0x%08X, kills=0x%08X, health=%d", 
+                         (int)(gameState.tankX + gameState.tankY), gameState.enemiesDestroyed, gameState.tankHealth);
+                
+                lstrcpy(bsodText[5], "");
+                lstrcpy(bsodText[6], "If this is the first time you've seen this error screen, restart your game.");
+                lstrcpy(bsodText[7], "Check for viruses and remove any newly installed enemy tanks.");
+                
+                lstrcpy(bsodText[8], "");
+                lstrcpy(bsodText[9], "Technical information:");
+                
+                /* Generate random hex dumps that look like memory addresses */
+                wsprintf(bsodText[10], "*** PROCESS_NAME: TANKZ.EXE  PID: 0x%04X", GetCurrentProcessId());
+                wsprintf(bsodText[11], "*** MEMORY_MANAGEMENT: 0x%08X  STACK_OVERFLOW: 0x%08X", 
+                         0xBAADF00D, 0xDEADBEEF);
+                
+                {
+                    char hexDigits[] = "0123456789ABCDEF";
+                    int j;
+                    int offset;
+                    char *dumpLine;
+                    
+                    /* Only show 3 memory dump lines instead of 5 */
+                    for (i = 12; i < 15; i++) {
+                        /* Create random looking memory dump lines */
+                        dumpLine = bsodText[i];
+                        offset = 0;
+                        
+                        /* Memory address prefix */
+                        offset += wsprintf(dumpLine + offset, "%08X  ", 0x80000000 + (i * 16));
+                        
+                        /* Generate hex values */
+                        for (j = 0; j < 16; j++) {
+                            if (j == 8) /* Extra space in middle */
+                                dumpLine[offset++] = ' ';
+                            
+                            dumpLine[offset++] = hexDigits[rand() % 16];
+                            dumpLine[offset++] = hexDigits[rand() % 16];
+                            dumpLine[offset++] = ' ';
+                        }
+                        
+                        dumpLine[offset] = '\0';
+                    }
+                }
+                
+                lstrcpy(bsodText[15], "");
+                lstrcpy(bsodText[16], "* Press any key or click to restart");
+                lstrcpy(bsodText[17], "* Press ESC or Q to quit");
+                
+                /* Display all the text lines */
+                yPos = 30;
+                for (i = 0; i < 18; i++) {
+                    TextOut(hBufferDC, 30, yPos, bsodText[i], lstrlen(bsodText[i]));
+                    yPos += 20;
+                }
+                
+                /* Clean up */
                 SelectObject(hBufferDC, oldFont);
-                DeleteObject(gameOverFont);
+                DeleteObject(consoleFont);
             }
             
             // Draw player health bar in top-left corner
@@ -2562,8 +2673,42 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         PostQuitMessage(0);
         return 0;
         
+    case WM_KEYUP:
+        // Use key release to track when all keys are released after death
+        if (gameState.inputLockActive) {
+            // Check if no keys are pressed anymore - check common game control keys
+            if (!(GetAsyncKeyState(VK_UP) & 0x8000) && 
+                !(GetAsyncKeyState(VK_DOWN) & 0x8000) && 
+                !(GetAsyncKeyState(VK_LEFT) & 0x8000) && 
+                !(GetAsyncKeyState(VK_RIGHT) & 0x8000) &&
+                !(GetAsyncKeyState(VK_SPACE) & 0x8000) &&
+                !(GetAsyncKeyState(VK_LBUTTON) & 0x8000)) {
+                // All keys released, disable the input lock
+                gameState.inputLockActive = FALSE;
+            }
+        }
+        return 0;
+        
     case WM_KEYDOWN:
-        // Handle ESC key to pause the game
+        // Check if player is on BSOD screen (dead) and needs respawn
+        if (!gameState.playerActive && gameState.playerExploding) {
+            // Ignore keypresses if input lock is active (prevents accidental restart)
+            if (gameState.inputLockActive) {
+                return 0;
+            }
+            
+            // Handle ESC or Q to quit during BSOD screen
+            if (wParam == VK_ESCAPE || wParam == 'Q') {
+                PostMessage(hwnd, WM_CLOSE, 0, 0);
+                return 0;
+            }
+            
+            // Any other key will restart after BSOD screen
+            RespawnPlayerTank();
+            return 0;
+        }
+        
+        // Handle ESC key to pause the game during normal gameplay
         if (wParam == VK_ESCAPE) {
             gamePaused = !gamePaused;
             gameNeedsRedraw = TRUE;
@@ -2573,6 +2718,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 mouseWasPressed = FALSE;
             }
         }
+        
+        // Handle Q key to quit during normal gameplay
+        if (wParam == 'Q') {
+            PostMessage(hwnd, WM_CLOSE, 0, 0);
+            return 0;
+        }
         return 0;
             
     case WM_MOUSEMOVE:
@@ -2581,6 +2732,37 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         gameState.mouseY = HIWORD(lParam);
         // Force redraw when mouse moves
         gameNeedsRedraw = TRUE;
+        return 0;
+        
+    case WM_LBUTTONDOWN:
+        // Set to TRUE for tracking mouseup events
+        mouseWasPressed = TRUE;
+        
+        // Check if player is on BSOD screen (dead) and needs respawn
+        if (!gameState.playerActive && gameState.playerExploding) {
+            // Ignore mouse clicks if input lock is active (prevents accidental restart)
+            if (gameState.inputLockActive) {
+                return 0;
+            }
+            
+            // Mouse click will restart after BSOD screen
+            RespawnPlayerTank();
+            return 0;
+        }
+        return 0;
+        
+    case WM_LBUTTONUP:
+        // Check if player is on BSOD screen (dead) and needs respawn
+        if (!gameState.playerActive && gameState.playerExploding) {
+            // If input lock is active and mouse was pressed and now released,
+            // disable the input lock to allow further clicks to restart
+            if (gameState.inputLockActive && mouseWasPressed) {
+                gameState.inputLockActive = FALSE;
+            }
+        }
+        
+        // Reset tracking for next click
+        mouseWasPressed = FALSE;
         return 0;
         
     case WM_SETCURSOR:
