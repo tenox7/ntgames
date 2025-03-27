@@ -4,6 +4,7 @@
 #include <string.h>
 #include <math.h>
 #include <mmsystem.h> /* For timeBeginPeriod/timeEndPeriod */
+#include "resource.h" /* Include resource IDs */
 
 #pragma comment(lib, "winmm.lib") /* Link with winmm.lib for timer functions */
 
@@ -24,9 +25,8 @@ char procTypeStr[64];
 #define MAX_ENEMIES 20
 #define MAX_LASERS 30
 #define MAX_EXPLOSIONS 20
-#define PLAYER_SIZE 20
-#define ENEMY_SIZE 20
-#define MOTHERSHIP_TYPE 3  /* New enemy type for rare massive ships */
+#define PLAYER_SIZE 32
+#define ENEMY_SIZE 32
 #define LASER_WIDTH 3
 #define LASER_HEIGHT 15
 #define ENEMY_LASER_SPEED 5
@@ -82,6 +82,7 @@ int gameStarted = 0;
 int shootCooldown = 0;
 int enemySpawnTimer = 0;
 int frameCount = 0;
+int gameOverTimer = 0;
 
 /* GDI objects */
 HINSTANCE hInst;
@@ -89,6 +90,12 @@ HWND hwnd;
 HDC hdcBuffer;
 HBITMAP hbmBuffer;
 HBITMAP hbmOldBuffer;
+
+/* Sprite bitmaps */
+HBITMAP hbmShip;
+HBITMAP hbmEnemy1;
+HBITMAP hbmEnemy2;
+HBITMAP hbmEnemy3;
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 void GameLoop(HDC hdc);
@@ -102,6 +109,7 @@ void InitStars(void);
 void DrawStars(HDC hdc);
 void UpdateStars(void);
 void RestartGame(void);
+void DrawSprite(HDC hdc, HBITMAP hbm, int x, int y, int width, int height);
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -225,6 +233,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     
     /* Initialize stars background */
     InitStars();
+    
+    /* Load sprite bitmaps from resources */
+    hbmShip = LoadBitmap(hInstance, MAKEINTRESOURCE(IDB_SHIP));
+    hbmEnemy1 = LoadBitmap(hInstance, MAKEINTRESOURCE(IDB_ENEMY1));
+    hbmEnemy2 = LoadBitmap(hInstance, MAKEINTRESOURCE(IDB_ENEMY2));
+    hbmEnemy3 = LoadBitmap(hInstance, MAKEINTRESOURCE(IDB_ENEMY3));
 
     /* Main message loop - reverting to simpler GetMessage for reliability */
     while (GetMessage(&msg, NULL, 0, 0)) {
@@ -345,6 +359,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             DeleteObject(hbmBuffer);
             DeleteDC(hdcBuffer);
             
+            /* Clean up bitmap resources */
+            DeleteObject(hbmShip);
+            DeleteObject(hbmEnemy1);
+            DeleteObject(hbmEnemy2);
+            DeleteObject(hbmEnemy3);
+            
             /* Restore cursor */
             ShowCursor(TRUE);
             
@@ -439,678 +459,36 @@ void DrawScene(HDC hdc)
 
     /* Draw player ship if not game over */
     if (!gameOver) {
-        /* Draw player ship (blue triangle) */
-        POINT playerPoints[3];
-        HBRUSH engineBrush;
-        
-        /* Ship body (triangle) */
-        playerPoints[0].x = playerX;  /* Top point */
-        playerPoints[0].y = playerY - PLAYER_SIZE / 2;
-        playerPoints[1].x = playerX - PLAYER_SIZE / 2;  /* Bottom left */
-        playerPoints[1].y = playerY + PLAYER_SIZE / 2;
-        playerPoints[2].x = playerX + PLAYER_SIZE / 2;  /* Bottom right */
-        playerPoints[2].y = playerY + PLAYER_SIZE / 2;
-        
-        playerBrush = CreateSolidBrush(RGB(30, 144, 255));  /* Dodger blue */
-        SelectObject(hdc, playerBrush);
-        Polygon(hdc, playerPoints, 3);
-        
-        /* Draw engine glow (small red rectangle at bottom) */
-        engineBrush = CreateSolidBrush(RGB(255, 50, 50));
-        SelectObject(hdc, engineBrush);
-        rect.left = playerX - 5;
-        rect.top = playerY + PLAYER_SIZE / 2;
-        rect.right = playerX + 5;
-        rect.bottom = playerY + PLAYER_SIZE / 2 + 5;
-        FillRect(hdc, &rect, engineBrush);
-        
-        /* Draw cockpit (small white circle near top) */
-        SelectObject(hdc, GetStockObject(WHITE_BRUSH));
-        Ellipse(hdc, playerX - 3, playerY - 5, playerX + 3, playerY + 1);
-        
-        DeleteObject(engineBrush);
-        DeleteObject(playerBrush);
+        /* Draw player ship using sprite */
+        DrawSprite(hdc, hbmShip, playerX - PLAYER_SIZE/2, playerY - PLAYER_SIZE/2, PLAYER_SIZE, PLAYER_SIZE);
     }
 
     /* Draw enemies */
     for (i = 0; i < MAX_ENEMIES; i++) {
         if (enemies[i].active) {
-            /* Choose color based on enemy type and add variations */
-            if (enemies[i].type == 0) {
-                /* Basic enemy - green with variations */
-                int colorVar = enemies[i].width - ENEMY_SIZE;  /* Base variation on size */
-                
-                /* Create color variation based on ship size */
-                if (colorVar < 0) {
-                    /* Smaller ships - blueish green */
-                    enemyBrush = CreateSolidBrush(RGB(0, 180 + colorVar, 120 - colorVar));
-                } else if (colorVar > 0) {
-                    /* Larger ships - yellowish green */
-                    enemyBrush = CreateSolidBrush(RGB(colorVar * 15, 200, 0));
-                } else {
-                    /* Standard ships - green */
-                    enemyBrush = CreateSolidBrush(RGB(0, 200, 0));
-                }
-            } else if (enemies[i].type == 1) {
-                /* Shooting enemy - with color variations based on size */
-                int colorVar = enemies[i].width - (ENEMY_SIZE + 5);
-                
-                /* Create color variations based on ship size */
-                if (colorVar < 0) {
-                    /* Smaller ships - orange */
-                    enemyBrush = CreateSolidBrush(RGB(220, 120 + colorVar, 0));
-                } else if (colorVar > 0) {
-                    /* Larger ships - bright yellow */
-                    enemyBrush = CreateSolidBrush(RGB(220 + (colorVar * 3), 220, colorVar * 10));
-                } else {
-                    /* Standard ships - yellow */
-                    enemyBrush = CreateSolidBrush(RGB(200, 200, 0));
-                }
-            } else if (enemies[i].type == 2) {
-                /* Boss - red with variations */
-                int colorVar = enemies[i].width - (ENEMY_SIZE * 2);
-                
-                /* Larger bosses are more intense red/purple */
-                if (colorVar > 0) {
-                    enemyBrush = CreateSolidBrush(RGB(220, 0, colorVar * 10));
-                } else {
-                    /* Standard boss - red */
-                    enemyBrush = CreateSolidBrush(RGB(200, 0, 0));
-                }
-            } else if (enemies[i].type == MOTHERSHIP_TYPE) {
-                /* Mothership - BRIGHT purple/red with strong pulsing effect */
-                int pulseEffect = (frameCount % 20) / 2;  /* 0-10 pulsing effect value */
-                
-                /* Create pulsing bright color that's very different from other ships */
-                enemyBrush = CreateSolidBrush(RGB(
-                    180 + pulseEffect * 7,  /* Strong red */
-                    50 + pulseEffect * 3,   /* Low green */
-                    220 - pulseEffect * 5   /* High blue with inverse pulse */
-                ));
+            /* Choose enemy bitmap based on type */
+            HBITMAP enemyBitmap;
+            
+            switch (enemies[i].type) {
+                case 0:
+                    enemyBitmap = hbmEnemy1;
+                    break;
+                case 1:
+                    enemyBitmap = hbmEnemy2;
+                    break;
+                case 2:
+                    enemyBitmap = hbmEnemy3;
+                    break;
+                default:
+                    enemyBitmap = hbmEnemy1;
+                    break;
             }
             
-            SelectObject(hdc, enemyBrush);
-            
-            /* Draw enemy shape based on type */
-            if (enemies[i].type == 0) {
-                /* Basic enemy - sharp aggressive fighter */
-                POINT shipPoints[7];
-                HBRUSH cockpitBrush, engineBrush;
-                
-                /* Main body - elongated pointed craft */
-                shipPoints[0].x = enemies[i].x;  /* Front tip - extra pointy */
-                shipPoints[0].y = enemies[i].y - enemies[i].height*2/3;
-                
-                shipPoints[1].x = enemies[i].x + enemies[i].width/4;  /* Upper right corner */
-                shipPoints[1].y = enemies[i].y - enemies[i].height/5;
-                
-                shipPoints[2].x = enemies[i].x + enemies[i].width/2;  /* Right wing tip - sharp */
-                shipPoints[2].y = enemies[i].y;
-                
-                shipPoints[3].x = enemies[i].x + enemies[i].width/4;  /* Lower right */
-                shipPoints[3].y = enemies[i].y + enemies[i].height/3;
-                
-                shipPoints[4].x = enemies[i].x;  /* Bottom/engine */
-                shipPoints[4].y = enemies[i].y + enemies[i].height/2;
-                
-                shipPoints[5].x = enemies[i].x - enemies[i].width/4;  /* Lower left */
-                shipPoints[5].y = enemies[i].y + enemies[i].height/3;
-                
-                shipPoints[6].x = enemies[i].x - enemies[i].width/2;  /* Left wing tip - sharp */
-                shipPoints[6].y = enemies[i].y;
-                
-                /* Fill the ship body */
-                Polygon(hdc, shipPoints, 7);
-                
-                /* Add menacing cockpit - red eye-like glow */
-                cockpitBrush = CreateSolidBrush(RGB(255, 50, 50));
-                SelectObject(hdc, cockpitBrush);
-                
-                /* Narrow slit cockpit - looks like evil eye */
-                rect.left = enemies[i].x - 7;
-                rect.top = enemies[i].y - enemies[i].height/4;
-                rect.right = enemies[i].x + 7;
-                rect.bottom = enemies[i].y - enemies[i].height/4 + 3;
-                FillRect(hdc, &rect, cockpitBrush);
-                
-                /* Add jagged engine exhaust */
-                engineBrush = CreateSolidBrush(RGB(255, 120, 0));
-                SelectObject(hdc, engineBrush);
-                
-                /* Jagged flame effect */
-                {
-                    POINT flamePoints[5];
-                    flamePoints[0].x = enemies[i].x;
-                    flamePoints[0].y = enemies[i].y + enemies[i].height/2;
-                    flamePoints[1].x = enemies[i].x + 5;
-                    flamePoints[1].y = enemies[i].y + enemies[i].height/2 + 8;
-                    flamePoints[2].x = enemies[i].x;
-                    flamePoints[2].y = enemies[i].y + enemies[i].height/2 + 4;
-                    flamePoints[3].x = enemies[i].x - 5;
-                    flamePoints[3].y = enemies[i].y + enemies[i].height/2 + 8;
-                    flamePoints[4].x = enemies[i].x;
-                    flamePoints[4].y = enemies[i].y + enemies[i].height/2;
-                    Polygon(hdc, flamePoints, 5);
-                }
-                
-                DeleteObject(engineBrush);
-                DeleteObject(cockpitBrush);
-            } else if (enemies[i].type == 1) {
-                /* Shooting enemy - intimidating predator-like craft */
-                POINT enemyPoints[9];
-                HBRUSH engineBrush, weaponBrush;
-                
-                /* Main body - more aggressive and angular - like a predator */
-                enemyPoints[0].x = enemies[i].x;  /* Front tip - very sharp */
-                enemyPoints[0].y = enemies[i].y - enemies[i].height*2/3;
-                
-                enemyPoints[1].x = enemies[i].x + enemies[i].width/6;  /* Upper right neck */
-                enemyPoints[1].y = enemies[i].y - enemies[i].height/3;
-                
-                enemyPoints[2].x = enemies[i].x + enemies[i].width/2;  /* Right wing - sharp */
-                enemyPoints[2].y = enemies[i].y - enemies[i].height/5;
-                
-                enemyPoints[3].x = enemies[i].x + enemies[i].width/3;  /* Mid right */
-                enemyPoints[3].y = enemies[i].y + enemies[i].height/5;
-                
-                enemyPoints[4].x = enemies[i].x + enemies[i].width/3;  /* Lower right wing */
-                enemyPoints[4].y = enemies[i].y + enemies[i].height/2;
-                
-                enemyPoints[5].x = enemies[i].x;  /* Engine exhaust point */
-                enemyPoints[5].y = enemies[i].y + enemies[i].height/3;
-                
-                enemyPoints[6].x = enemies[i].x - enemies[i].width/3;  /* Lower left wing */
-                enemyPoints[6].y = enemies[i].y + enemies[i].height/2;
-                
-                enemyPoints[7].x = enemies[i].x - enemies[i].width/3;  /* Mid left */
-                enemyPoints[7].y = enemies[i].y + enemies[i].height/5;
-                
-                enemyPoints[8].x = enemies[i].x - enemies[i].width/2;  /* Left wing - sharp */
-                enemyPoints[8].y = enemies[i].y - enemies[i].height/5;
-                
-                Polygon(hdc, enemyPoints, 9);
-                
-                /* Add scary-looking engine glow */
-                engineBrush = CreateSolidBrush(RGB(255, 50, 0));
-                SelectObject(hdc, engineBrush);
-                
-                /* Create triangle flame effect */
-                {
-                    POINT flamePoints[3];
-                    flamePoints[0].x = enemies[i].x;
-                    flamePoints[0].y = enemies[i].y + enemies[i].height/3;
-                    flamePoints[1].x = enemies[i].x - 8;
-                    flamePoints[1].y = enemies[i].y + enemies[i].height/2 + 8;
-                    flamePoints[2].x = enemies[i].x + 8;
-                    flamePoints[2].y = enemies[i].y + enemies[i].height/2 + 8;
-                    
-                    Polygon(hdc, flamePoints, 3);
-                }
-                
-                /* Add menacing weapon mounts */
-                weaponBrush = CreateSolidBrush(RGB(60, 60, 60));
-                SelectObject(hdc, weaponBrush);
-                
-                /* Gun barrels projecting forward */
-                {
-                    POINT leftGun[4], rightGun[4];
-                    
-                    /* Left gun */
-                    leftGun[0].x = enemies[i].x - enemies[i].width/4;
-                    leftGun[0].y = enemies[i].y - enemies[i].height/5;
-                    leftGun[1].x = enemies[i].x - enemies[i].width/6;
-                    leftGun[1].y = enemies[i].y - enemies[i].height/5;
-                    leftGun[2].x = enemies[i].x - enemies[i].width/8;
-                    leftGun[2].y = enemies[i].y - enemies[i].height/2;
-                    leftGun[3].x = enemies[i].x - enemies[i].width/5;
-                    leftGun[3].y = enemies[i].y - enemies[i].height/2;
-                    Polygon(hdc, leftGun, 4);
-                    
-                    /* Right gun */
-                    rightGun[0].x = enemies[i].x + enemies[i].width/4;
-                    rightGun[0].y = enemies[i].y - enemies[i].height/5;
-                    rightGun[1].x = enemies[i].x + enemies[i].width/6;
-                    rightGun[1].y = enemies[i].y - enemies[i].height/5;
-                    rightGun[2].x = enemies[i].x + enemies[i].width/8;
-                    rightGun[2].y = enemies[i].y - enemies[i].height/2;
-                    rightGun[3].x = enemies[i].x + enemies[i].width/5;
-                    rightGun[3].y = enemies[i].y - enemies[i].height/2;
-                    Polygon(hdc, rightGun, 4);
-                }
-                
-                /* Add red tips to guns - looks like charging weapons */
-                SelectObject(hdc, CreateSolidBrush(RGB(255, 0, 0)));
-                Ellipse(hdc, enemies[i].x - enemies[i].width/5 - 2, 
-                        enemies[i].y - enemies[i].height/2 - 5,
-                        enemies[i].x - enemies[i].width/8 + 2, 
-                        enemies[i].y - enemies[i].height/2);
-                
-                Ellipse(hdc, enemies[i].x + enemies[i].width/8 - 2, 
-                        enemies[i].y - enemies[i].height/2 - 5,
-                        enemies[i].x + enemies[i].width/5 + 2, 
-                        enemies[i].y - enemies[i].height/2);
-                
-                DeleteObject(weaponBrush);
-                DeleteObject(engineBrush);
-            } else if (enemies[i].type == 2) {
-                /* Boss - terrifying battle cruiser with sharp angles */
-                POINT bossPoints[10];
-                HBRUSH gunBrush, engineBrush, detailBrush;
-                int pulseEffect = (frameCount % 20) / 2;  /* 0-10 pulsing effect */
-                
-                /* Main body - very angular, elongated battle cruiser */
-                bossPoints[0].x = enemies[i].x;  /* Front tip - extra sharp */
-                bossPoints[0].y = enemies[i].y - enemies[i].height*2/3;
-                
-                bossPoints[1].x = enemies[i].x + enemies[i].width/5;  /* Upper right hull */
-                bossPoints[1].y = enemies[i].y - enemies[i].height/3;
-                
-                bossPoints[2].x = enemies[i].x + enemies[i].width/2;  /* Right forward wing */
-                bossPoints[2].y = enemies[i].y - enemies[i].height/4;
-                
-                bossPoints[3].x = enemies[i].x + enemies[i].width*2/3;  /* Right mid wing */
-                bossPoints[3].y = enemies[i].y;
-                
-                bossPoints[4].x = enemies[i].x + enemies[i].width/3;  /* Right rear */
-                bossPoints[4].y = enemies[i].y + enemies[i].height/3;
-                
-                bossPoints[5].x = enemies[i].x;  /* Rear point */
-                bossPoints[5].y = enemies[i].y + enemies[i].height/2;
-                
-                bossPoints[6].x = enemies[i].x - enemies[i].width/3;  /* Left rear */
-                bossPoints[6].y = enemies[i].y + enemies[i].height/3;
-                
-                bossPoints[7].x = enemies[i].x - enemies[i].width*2/3;  /* Left mid wing */
-                bossPoints[7].y = enemies[i].y;
-                
-                bossPoints[8].x = enemies[i].x - enemies[i].width/2;  /* Left forward wing */
-                bossPoints[8].y = enemies[i].y - enemies[i].height/4;
-                
-                bossPoints[9].x = enemies[i].x - enemies[i].width/5;  /* Upper left hull */
-                bossPoints[9].y = enemies[i].y - enemies[i].height/3;
-                
-                Polygon(hdc, bossPoints, 10);
-                
-                /* Add menacing command bridge - angular design */
-                detailBrush = CreateSolidBrush(RGB(100, 100 + pulseEffect * 5, 200));
-                SelectObject(hdc, detailBrush);
-                
-                /* Angular command deck - trapezoid shape */
-                {
-                    POINT bridgePoints[4];
-                    bridgePoints[0].x = enemies[i].x - enemies[i].width/8;
-                    bridgePoints[0].y = enemies[i].y - enemies[i].height/4;
-                    bridgePoints[1].x = enemies[i].x + enemies[i].width/8;
-                    bridgePoints[1].y = enemies[i].y - enemies[i].height/4;
-                    bridgePoints[2].x = enemies[i].x + enemies[i].width/10;
-                    bridgePoints[2].y = enemies[i].y - enemies[i].height/2;
-                    bridgePoints[3].x = enemies[i].x - enemies[i].width/10;
-                    bridgePoints[3].y = enemies[i].y - enemies[i].height/2;
-                    
-                    Polygon(hdc, bridgePoints, 4);
-                }
-                
-                /* Add menacing looking weapon arrays */
-                gunBrush = CreateSolidBrush(RGB(70, 70, 70));
-                SelectObject(hdc, gunBrush);
-                
-                /* Left cannon - aggressive angular shape */
-                {
-                    POINT leftCannon[4];
-                    leftCannon[0].x = enemies[i].x - enemies[i].width/2;
-                    leftCannon[0].y = enemies[i].y - enemies[i].height/5;
-                    leftCannon[1].x = enemies[i].x - enemies[i].width/4;
-                    leftCannon[1].y = enemies[i].y - enemies[i].height/5;
-                    leftCannon[2].x = enemies[i].x - enemies[i].width/3;
-                    leftCannon[2].y = enemies[i].y + enemies[i].height/5;
-                    leftCannon[3].x = enemies[i].x - enemies[i].width*2/3;
-                    leftCannon[3].y = enemies[i].y + enemies[i].height/5;
-                    Polygon(hdc, leftCannon, 4);
-                }
-                
-                /* Right cannon - aggressive angular shape */
-                {
-                    POINT rightCannon[4];
-                    rightCannon[0].x = enemies[i].x + enemies[i].width/2;
-                    rightCannon[0].y = enemies[i].y - enemies[i].height/5;
-                    rightCannon[1].x = enemies[i].x + enemies[i].width/4;
-                    rightCannon[1].y = enemies[i].y - enemies[i].height/5;
-                    rightCannon[2].x = enemies[i].x + enemies[i].width/3;
-                    rightCannon[2].y = enemies[i].y + enemies[i].height/5;
-                    rightCannon[3].x = enemies[i].x + enemies[i].width*2/3;
-                    rightCannon[3].y = enemies[i].y + enemies[i].height/5;
-                    Polygon(hdc, rightCannon, 4);
-                }
-                
-                /* Add glowing red weapon tips */
-                SelectObject(hdc, CreateSolidBrush(RGB(255, 0, 0)));
-                Ellipse(hdc, enemies[i].x - enemies[i].width*2/3 - 4, 
-                       enemies[i].y + enemies[i].height/5 - 2,
-                       enemies[i].x - enemies[i].width*2/3 + 4, 
-                       enemies[i].y + enemies[i].height/5 + 6);
-                
-                Ellipse(hdc, enemies[i].x + enemies[i].width*2/3 - 4, 
-                       enemies[i].y + enemies[i].height/5 - 2,
-                       enemies[i].x + enemies[i].width*2/3 + 4, 
-                       enemies[i].y + enemies[i].height/5 + 6);
-                
-                /* Engine jets - jagged flames */
-                engineBrush = CreateSolidBrush(RGB(255, 100, 0));
-                SelectObject(hdc, engineBrush);
-                
-                /* Left engine flame - jagged design */
-                {
-                    POINT leftFlame[5];
-                    leftFlame[0].x = enemies[i].x - enemies[i].width/5;
-                    leftFlame[0].y = enemies[i].y + enemies[i].height/3;
-                    leftFlame[1].x = enemies[i].x - enemies[i].width/4;
-                    leftFlame[1].y = enemies[i].y + enemies[i].height/2 + 8;
-                    leftFlame[2].x = enemies[i].x - enemies[i].width/6;
-                    leftFlame[2].y = enemies[i].y + enemies[i].height/3 + 5;
-                    leftFlame[3].x = enemies[i].x - enemies[i].width/8;
-                    leftFlame[3].y = enemies[i].y + enemies[i].height/2 + 10;
-                    leftFlame[4].x = enemies[i].x - enemies[i].width/10;
-                    leftFlame[4].y = enemies[i].y + enemies[i].height/3;
-                    
-                    Polygon(hdc, leftFlame, 5);
-                }
-                
-                /* Right engine flame - jagged design */
-                {
-                    POINT rightFlame[5];
-                    rightFlame[0].x = enemies[i].x + enemies[i].width/5;
-                    rightFlame[0].y = enemies[i].y + enemies[i].height/3;
-                    rightFlame[1].x = enemies[i].x + enemies[i].width/4;
-                    rightFlame[1].y = enemies[i].y + enemies[i].height/2 + 8;
-                    rightFlame[2].x = enemies[i].x + enemies[i].width/6;
-                    rightFlame[2].y = enemies[i].y + enemies[i].height/3 + 5;
-                    rightFlame[3].x = enemies[i].x + enemies[i].width/8;
-                    rightFlame[3].y = enemies[i].y + enemies[i].height/2 + 10;
-                    rightFlame[4].x = enemies[i].x + enemies[i].width/10;
-                    rightFlame[4].y = enemies[i].y + enemies[i].height/3;
-                    
-                    Polygon(hdc, rightFlame, 5);
-                }
-                
-                DeleteObject(engineBrush);
-                DeleteObject(gunBrush);
-                DeleteObject(detailBrush);
-            } else if (enemies[i].type == MOTHERSHIP_TYPE) {
-                /* ALIEN DREADNOUGHT - massive warship with sharp, threatening angles */
-                HBRUSH detailBrush, engineBrush, weaponBrush, beamBrush, glowBrush;
-                HPEN outlinePen;
-                int j, dx, dy;
-                int pulseEffect = (frameCount % 20) / 2;  /* 0-10 pulsing effect */
-                POINT outlinePoints[6];
-                POINT outerPoints[6];
-                
-                /* Main dreadnought body - elongated, jagged star shape */
-                {
-                    POINT shipBody[12];
-                    /* Front point - extra long and sharp */
-                    shipBody[0].x = enemies[i].x;
-                    shipBody[0].y = enemies[i].y - enemies[i].height*3/4;
-                
-                    /* Upper right angle */
-                    shipBody[1].x = enemies[i].x + enemies[i].width/5;
-                    shipBody[1].y = enemies[i].y - enemies[i].height/3;
-                    
-                    /* Upper right spike */
-                    shipBody[2].x = enemies[i].x + enemies[i].width*2/3;
-                    shipBody[2].y = enemies[i].y - enemies[i].height/2;
-                    
-                    /* Mid right */
-                    shipBody[3].x = enemies[i].x + enemies[i].width/3;
-                    shipBody[3].y = enemies[i].y - enemies[i].height/6;
-                    
-                    /* Right side spike */
-                    shipBody[4].x = enemies[i].x + enemies[i].width;
-                    shipBody[4].y = enemies[i].y;
-                    
-                    /* Lower right */
-                    shipBody[5].x = enemies[i].x + enemies[i].width/2;
-                    shipBody[5].y = enemies[i].y + enemies[i].height/3;
-                    
-                    /* Rear point */
-                    shipBody[6].x = enemies[i].x;
-                    shipBody[6].y = enemies[i].y + enemies[i].height/2;
-                    
-                    /* Lower left */
-                    shipBody[7].x = enemies[i].x - enemies[i].width/2;
-                    shipBody[7].y = enemies[i].y + enemies[i].height/3;
-                    
-                    /* Left side spike */
-                    shipBody[8].x = enemies[i].x - enemies[i].width;
-                    shipBody[8].y = enemies[i].y;
-                    
-                    /* Mid left */
-                    shipBody[9].x = enemies[i].x - enemies[i].width/3;
-                    shipBody[9].y = enemies[i].y - enemies[i].height/6;
-                    
-                    /* Upper left spike */
-                    shipBody[10].x = enemies[i].x - enemies[i].width*2/3;
-                    shipBody[10].y = enemies[i].y - enemies[i].height/2;
-                    
-                    /* Upper left angle */
-                    shipBody[11].x = enemies[i].x - enemies[i].width/5;
-                    shipBody[11].y = enemies[i].y - enemies[i].height/3;
-                    
-                    /* Fill the mothership body */
-                    Polygon(hdc, shipBody, 12);
-                }
-                
-                /* Add terrifying "glow of doom" effect - angular and pulsing */
-                glowBrush = CreateSolidBrush(RGB(255, 40 + pulseEffect * 8, 100 + pulseEffect * 5));
-                SelectObject(hdc, glowBrush);
-                
-                /* Draw angular glow shape around ship */
-                {
-                    POINT glowPoints[8];
-                    glowPoints[0].x = enemies[i].x;  /* Top */
-                    glowPoints[0].y = enemies[i].y - enemies[i].height - 20;
-                    glowPoints[1].x = enemies[i].x + enemies[i].width + 30;  /* Upper right */
-                    glowPoints[1].y = enemies[i].y - enemies[i].height/3;
-                    glowPoints[2].x = enemies[i].x + enemies[i].width*5/4;  /* Right */
-                    glowPoints[2].y = enemies[i].y;
-                    glowPoints[3].x = enemies[i].x + enemies[i].width/2;  /* Lower right */
-                    glowPoints[3].y = enemies[i].y + enemies[i].height*3/4;
-                    glowPoints[4].x = enemies[i].x;  /* Bottom */
-                    glowPoints[4].y = enemies[i].y + enemies[i].height*2/3;
-                    glowPoints[5].x = enemies[i].x - enemies[i].width/2;  /* Lower left */
-                    glowPoints[5].y = enemies[i].y + enemies[i].height*3/4;
-                    glowPoints[6].x = enemies[i].x - enemies[i].width*5/4;  /* Left */
-                    glowPoints[6].y = enemies[i].y;
-                    glowPoints[7].x = enemies[i].x - enemies[i].width - 30;  /* Upper left */
-                    glowPoints[7].y = enemies[i].y - enemies[i].height/3;
-                
-                    SelectObject(hdc, GetStockObject(NULL_BRUSH));  /* Just outline */
-                    outlinePen = CreatePen(PS_SOLID, 1 + pulseEffect/2, RGB(255, 0 + pulseEffect * 10, 80));
-                    SelectObject(hdc, outlinePen);
-                    Polygon(hdc, glowPoints, 8);
-                }
-                
-                /* Central command spire - angular sharp design */
-                SelectObject(hdc, GetStockObject(NULL_BRUSH));  /* Reset to no fill */
-                DeleteObject(outlinePen);
-                
-                /* Now draw the command bridge - sharp pyramid */
-                detailBrush = CreateSolidBrush(RGB(200, 0, 50 + pulseEffect * 10));
-                SelectObject(hdc, detailBrush);
-                
-                {
-                    POINT bridgePoints[5];
-                    bridgePoints[0].x = enemies[i].x;  /* Top spike */
-                    bridgePoints[0].y = enemies[i].y - enemies[i].height/2;
-                    bridgePoints[1].x = enemies[i].x + enemies[i].width/6;  /* Upper right */
-                    bridgePoints[1].y = enemies[i].y - enemies[i].height/4;
-                    bridgePoints[2].x = enemies[i].x + enemies[i].width/10;  /* Lower right */
-                    bridgePoints[2].y = enemies[i].y;
-                    bridgePoints[3].x = enemies[i].x - enemies[i].width/10;  /* Lower left */
-                    bridgePoints[3].y = enemies[i].y;
-                    bridgePoints[4].x = enemies[i].x - enemies[i].width/6;  /* Upper left */
-                    bridgePoints[4].y = enemies[i].y - enemies[i].height/4;
-                    
-                    Polygon(hdc, bridgePoints, 5);
-                }
-                
-                /* Add menacing eye-like sensor array */
-                SelectObject(hdc, CreateSolidBrush(RGB(255, 255, 0)));
-                rect.left = enemies[i].x - enemies[i].width/5;
-                rect.top = enemies[i].y - enemies[i].height/5;
-                rect.right = enemies[i].x + enemies[i].width/5;
-                rect.bottom = enemies[i].y - enemies[i].height/5 + 5;
-                FillRect(hdc, &rect, CreateSolidBrush(RGB(255, 50, 0)));
-                
-                /* Add massive weapon arrays */
-                weaponBrush = CreateSolidBrush(RGB(40, 40, 40));
-                SelectObject(hdc, weaponBrush);
-                
-                /* Draw angular wings with weapon spikes */
-                /* Left wing weapons */
-                {
-                    POINT leftWeapon[4];
-                    leftWeapon[0].x = enemies[i].x - enemies[i].width/3;
-                    leftWeapon[0].y = enemies[i].y - enemies[i].height/8;
-                    leftWeapon[1].x = enemies[i].x - enemies[i].width*2/3;
-                    leftWeapon[1].y = enemies[i].y + enemies[i].height/8;
-                    leftWeapon[2].x = enemies[i].x - enemies[i].width*4/5;
-                    leftWeapon[2].y = enemies[i].y + enemies[i].height/8;
-                    leftWeapon[3].x = enemies[i].x - enemies[i].width/2;
-                    leftWeapon[3].y = enemies[i].y - enemies[i].height/8;
-                    Polygon(hdc, leftWeapon, 4);
-                }
-                
-                /* Right wing weapons */
-                {
-                    POINT rightWeapon[4];
-                    rightWeapon[0].x = enemies[i].x + enemies[i].width/3;
-                    rightWeapon[0].y = enemies[i].y - enemies[i].height/8;
-                    rightWeapon[1].x = enemies[i].x + enemies[i].width*2/3;
-                    rightWeapon[1].y = enemies[i].y + enemies[i].height/8;
-                    rightWeapon[2].x = enemies[i].x + enemies[i].width*4/5;
-                    rightWeapon[2].y = enemies[i].y + enemies[i].height/8;
-                    rightWeapon[3].x = enemies[i].x + enemies[i].width/2;
-                    rightWeapon[3].y = enemies[i].y - enemies[i].height/8;
-                    Polygon(hdc, rightWeapon, 4);
-                }
-                
-                /* Add evil-looking red weapon glow at wing tips */
-                for (j = -1; j <= 1; j += 2) {  /* -1 = left, 1 = right */
-                    int xPos = enemies[i].x + (j * enemies[i].width*4/5);
-                    int yPos = enemies[i].y + enemies[i].height/8;
-                    
-                    SelectObject(hdc, CreateSolidBrush(RGB(255, 0, 0)));
-                    Ellipse(hdc, xPos - 5, yPos - 3, xPos + 5, yPos + 3);
-                    
-                    /* Add secondary smaller red glow */
-                    SelectObject(hdc, CreateSolidBrush(RGB(255, 100, 0)));
-                    Ellipse(hdc, xPos - 3, yPos - 2, xPos + 3, yPos + 2);
-                }
-                
-                /* Add massive, intimidating engine exhausts */
-                engineBrush = CreateSolidBrush(RGB(255, 80 + pulseEffect * 10, 0));
-                SelectObject(hdc, engineBrush);
-                
-                /* Draw multiple large, jagged flame arrays */
-                for (j = -2; j <= 2; j++) {
-                    /* Position across the back of the ship */
-                    int xPos = enemies[i].x + (j * (enemies[i].width/8));
-                    int engineWidth = 10 + (abs(j) == 2 ? 0 : 5); /* Center engines larger */
-                    
-                    /* Jagged flame shape */
-                    POINT flamePoints[5];
-                    flamePoints[0].x = xPos;
-                    flamePoints[0].y = enemies[i].y + enemies[i].height/3;
-                    flamePoints[1].x = xPos + engineWidth;
-                    flamePoints[1].y = enemies[i].y + enemies[i].height/2 + 10 + (pulseEffect * 2);
-                    flamePoints[2].x = xPos;
-                    flamePoints[2].y = enemies[i].y + enemies[i].height/2;
-                    flamePoints[3].x = xPos - engineWidth;
-                    flamePoints[3].y = enemies[i].y + enemies[i].height/2 + 10 + (pulseEffect * 2);
-                    flamePoints[4].x = xPos;
-                    flamePoints[4].y = enemies[i].y + enemies[i].height/3;
-                    
-                    Polygon(hdc, flamePoints, 5);
-                }
-                
-                /* Add energy beam weapons if actively firing */
-                if ((frameCount + enemies[i].x) % 30 < 15) {
-                    /* Only show beams during part of the cycle - looks like charging/firing */
-                    beamBrush = CreateSolidBrush(RGB(255, 0, 170)); /* Deep magenta beam */
-                    SelectObject(hdc, beamBrush);
-                    
-                    /* Draw multiple beam weapons */
-                    for (j = -1; j <= 1; j += 2) {
-                        /* Left and right beams */
-                        POINT beamPoints[4];
-                        int beamX = enemies[i].x + (j * enemies[i].width/3);
-                        int beamWidth = enemies[i].width / 15;
-                        
-                        /* Angled jagged beam shape */
-                        beamPoints[0].x = beamX;
-                        beamPoints[0].y = enemies[i].y;
-                        beamPoints[1].x = beamX + beamWidth;
-                        beamPoints[1].y = enemies[i].y + enemies[i].height*2;
-                        beamPoints[2].x = beamX - beamWidth;
-                        beamPoints[2].y = enemies[i].y + enemies[i].height*2;
-                        beamPoints[3].x = beamX;
-                        beamPoints[3].y = enemies[i].y;
-                        
-                        Polygon(hdc, beamPoints, 4);
-                    }
-                    DeleteObject(beamBrush);
-                }
-                
-                /* Now draw the outlines for the mothership */
-                
-                /* Add dramatic pulsing outline */
-                outlinePen = CreatePen(PS_SOLID, 2 + pulseEffect/2, RGB(255, 100, 255));
-                SelectObject(hdc, outlinePen);
-                
-                /* Draw outline around main body - using a simple hexagon instead */
-                /* Simplified outline points */
-                outlinePoints[0].x = enemies[i].x;
-                outlinePoints[0].y = enemies[i].y - enemies[i].height*2/3;
-                outlinePoints[1].x = enemies[i].x + enemies[i].width/2;
-                outlinePoints[1].y = enemies[i].y - enemies[i].height/4;
-                outlinePoints[2].x = enemies[i].x + enemies[i].width/2;
-                outlinePoints[2].y = enemies[i].y + enemies[i].height/4;
-                outlinePoints[3].x = enemies[i].x;
-                outlinePoints[3].y = enemies[i].y + enemies[i].height/2;
-                outlinePoints[4].x = enemies[i].x - enemies[i].width/2;
-                outlinePoints[4].y = enemies[i].y + enemies[i].height/4;
-                outlinePoints[5].x = enemies[i].x - enemies[i].width/2;
-                outlinePoints[5].y = enemies[i].y - enemies[i].height/4;
-                
-                SelectObject(hdc, GetStockObject(NULL_BRUSH));  /* No fill */
-                Polygon(hdc, outlinePoints, 6);
-                
-                /* Draw second outline effect */
-                DeleteObject(outlinePen);
-                outlinePen = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
-                SelectObject(hdc, outlinePen);
-                
-                /* Draw an additional slightly larger outline */
-                for (j = 0; j < 6; j++) {
-                    /* Use the same outline points we created before */
-                    dx = outlinePoints[j].x - enemies[i].x;
-                    dy = outlinePoints[j].y - enemies[i].y;
-                    
-                    /* Scale outward slightly */
-                    outerPoints[j].x = enemies[i].x + (int)(dx * 1.1);
-                    outerPoints[j].y = enemies[i].y + (int)(dy * 1.1);
-                }
-                Polygon(hdc, outerPoints, 6);
-                
-                /* Cleanup */
-                DeleteObject(outlinePen);
-                DeleteObject(engineBrush);
-                DeleteObject(weaponBrush);
-                DeleteObject(detailBrush);
-                DeleteObject(glowBrush);
-            }
-            
-            DeleteObject(enemyBrush);
+            /* Draw enemy sprite */
+            DrawSprite(hdc, enemyBitmap, 
+                      enemies[i].x - enemies[i].width/2, 
+                      enemies[i].y - enemies[i].height/2, 
+                      enemies[i].width, enemies[i].height);
         }
     }
 
@@ -1237,7 +615,12 @@ void DrawScene(HDC hdc)
         }
         
         lstrcpy(bsodText[25], "");
-        lstrcpy(bsodText[26], "* Press any key or click to restart");
+        if (gameOverTimer > 0) {
+            int secsLeft = (gameOverTimer + 59) / 60; /* Round up to the next second */
+            wsprintf(bsodText[26], "* System will restart in %d seconds...", secsLeft);
+        } else {
+            lstrcpy(bsodText[26], "* Press any key or click to restart");
+        }
         lstrcpy(bsodText[27], "* Press ESC or Q to quit");
         
         /* Display all the text lines */
@@ -1260,7 +643,11 @@ void UpdateGame(void)
     frameCount++;
     
     if (gameOver) {
-        return;  /* Stop updating if game is over */
+        /* If game is over, just update the game over timer */
+        if (gameOverTimer > 0) {
+            gameOverTimer--;
+        }
+        return;  /* Stop updating game mechanics if game is over */
     }
     
     /* Update player shoot cooldown */
@@ -1320,6 +707,7 @@ void UpdateGame(void)
                         
                         if (playerHealth <= 0) {
                             gameOver = 1;
+                            gameOverTimer = 300; /* 5 seconds at 60 FPS */
                         }
                     }
                 }
@@ -1386,6 +774,7 @@ void UpdateGame(void)
                     if (playerHealth <= 0) {
                         CreateExplosion(playerX, playerY, 1);
                         gameOver = 1;
+                        gameOverTimer = 300; /* 5 seconds at 60 FPS */
                     }
                     continue;
                 }
@@ -1401,119 +790,29 @@ void UpdateGame(void)
                     shouldShoot = 1;
                     enemies[i].shootTimer = 90;  /* Basic: 1.5 seconds between shots */
                 }
-                /* Type 1 (shooter): frequently shoot aimed at player */
-                else if (enemies[i].type == 1) {
+                /* Type 1 (double shooter): shoots two bullets side by side */
+                else if (enemies[i].type == 1 && rand() % 100 < 15) {
                     shouldShoot = 1;
-                    enemies[i].shootTimer = 45;  /* Shooter: 0.75 seconds between shots */
+                    enemies[i].shootTimer = 75;  /* Double shooter: 1.25 seconds between shots */
                 }
-                /* Type 2 (boss): constant shooting with spread pattern */
-                else if (enemies[i].type == 2) {
+                /* Type 3 (rapid): shoots more frequently and faster bullets */
+                else if (enemies[i].type == 2 && rand() % 100 < 25) {
                     shouldShoot = 1;
-                    enemies[i].shootTimer = 20;  /* Boss: 0.33 seconds between shots */
-                }
-                /* Type 3 (mothership): constant heavy barrage */
-                else if (enemies[i].type == MOTHERSHIP_TYPE) {
-                    shouldShoot = 1;
-                    enemies[i].shootTimer = 15;  /* Mothership: 0.25 seconds between shots - rapid fire */
+                    enemies[i].shootTimer = 30;  /* Rapid: 0.5 seconds between shots */
                 }
                 
                 if (shouldShoot && !gameOver) {
-                    /* Aim at player for type 1 and 2 enemies */
-                    if (enemies[i].type >= 1 && enemies[i].type <= 2) {
-                        /* Calculate direction to player */
-                        int dx = playerX - enemies[i].x;
-                        int dy = playerY - enemies[i].y;
-                        double angle = atan2((double)dy, (double)dx);
-                        
-                        /* Convert to x,y offset */
-                        int offsetX = (int)(sin(angle) * 10);
-                        int offsetY = (int)(cos(angle) * 10);
-                        
-                        /* Shoot in player's direction */
-                        ShootAimedLaser(enemies[i].x, enemies[i].y + enemies[i].height/2, offsetX, offsetY, 1);
-                    } else if (enemies[i].type == MOTHERSHIP_TYPE) {
-                        /* Mothership special attack patterns */
-                        int patternType = (frameCount / 60) % 3;  /* Cycle through 3 attack patterns */
-                        
-                        switch (patternType) {
-                            case 0:  /* Radial pattern */
-                                {
-                                    /* Shoot in 6 directions */
-                                    int j;
-                                    double angle;
-                                    int offsetX, offsetY;
-                                    
-                                    for (j = 0; j < 6; j++) {
-                                        angle = j * 3.14159 / 3;  /* 60 degree spacing */
-                                        /* Slightly randomize angles for variety */
-                                        angle += (rand() % 10 - 5) * 0.01;
-                                        
-                                        offsetX = (int)(sin(angle) * 10);
-                                        offsetY = (int)(cos(angle) * 10);
-                                        
-                                        ShootAimedLaser(enemies[i].x, enemies[i].y + enemies[i].height/3, 
-                                                      offsetX, offsetY, 1);
-                                    }
-                                }
-                                break;
-                                
-                            case 1:  /* Aimed triple shot */
-                                {
-                                    /* Calculate direction to player */
-                                    int dx, dy;
-                                    double angle;
-                                    int offsetX, offsetY;
-                                    
-                                    dx = playerX - enemies[i].x;
-                                    dy = playerY - enemies[i].y;
-                                    angle = atan2((double)dy, (double)dx);
-                                    
-                                    /* Main shot at player */
-                                    offsetX = (int)(sin(angle) * 10);
-                                    offsetY = (int)(cos(angle) * 10);
-                                    ShootAimedLaser(enemies[i].x, enemies[i].y + enemies[i].height/3, 
-                                                   offsetX, offsetY, 1);
-                                    
-                                    /* Side shots at slight angles */
-                                    ShootAimedLaser(enemies[i].x - enemies[i].width/4, enemies[i].y + enemies[i].height/3, 
-                                                   offsetX - 2, offsetY, 1);
-                                    ShootAimedLaser(enemies[i].x + enemies[i].width/4, enemies[i].y + enemies[i].height/3, 
-                                                   offsetX + 2, offsetY, 1);
-                                }
-                                break;
-                                
-                            case 2:  /* Sweep pattern */
-                                {
-                                    /* Create a sweeping laser pattern */
-                                    int sweepPos;
-                                    double sweepAngle;
-                                    int offsetX, offsetY;
-                                    
-                                    sweepPos = frameCount % 40;  /* 0-39 sweep position */
-                                    sweepAngle = (sweepPos - 20) * 0.05;  /* -1.0 to 1.0 radians */
-                                    
-                                    offsetX = (int)(sin(sweepAngle) * 10);
-                                    offsetY = 10;  /* Mainly downward */
-                                    
-                                    /* Multiple parallel beams */
-                                    ShootAimedLaser(enemies[i].x - enemies[i].width/3, enemies[i].y + enemies[i].height/3, 
-                                                   offsetX, offsetY, 1);
-                                    ShootAimedLaser(enemies[i].x, enemies[i].y + enemies[i].height/3, 
-                                                   offsetX, offsetY, 1);
-                                    ShootAimedLaser(enemies[i].x + enemies[i].width/3, enemies[i].y + enemies[i].height/3, 
-                                                   offsetX, offsetY, 1);
-                                }
-                                break;
-                        }
-                    } else {
-                        /* Basic enemies just shoot straight down */
+                    /* All enemies shoot straight down but with different patterns */
+                    if (enemies[i].type == 0) {
+                        /* Basic enemy (type 0) - one regular bullet */
                         ShootLaser(enemies[i].x, enemies[i].y + enemies[i].height/2, 1);
-                    }
-                    
-                    /* Boss shoots additional lasers in spread pattern */
-                    if (enemies[i].type == 2) {
-                        ShootLaser(enemies[i].x - 15, enemies[i].y + enemies[i].height/2, 1);
-                        ShootLaser(enemies[i].x + 15, enemies[i].y + enemies[i].height/2, 1);
+                    } else if (enemies[i].type == 1) {
+                        /* Enemy type 1 - shoots 2 bullets side by side */
+                        ShootLaser(enemies[i].x - 8, enemies[i].y + enemies[i].height/2, 1);
+                        ShootLaser(enemies[i].x + 8, enemies[i].y + enemies[i].height/2, 1);
+                    } else if (enemies[i].type == 2) {
+                        /* Enemy type 2 - shoots faster bullets */
+                        ShootLaser(enemies[i].x, enemies[i].y + enemies[i].height/2, 2);
                     }
                 }
             }
@@ -1528,26 +827,22 @@ void UpdateGame(void)
     /* Spawn new enemies */
     enemySpawnTimer--;
     if (enemySpawnTimer <= 0) {
-        /* Determine enemy type based on score and random chance */
-        int type = 0;  /* Default: basic enemy */
+        /* Randomly choose enemy type with all three types available from the start */
+        int type;
         int r = rand() % 100;
         
-        if ((score > 1000 && r < 20) || r < 5) {
-            /* For testing: 20% chance after 1000 points or 5% chance always */
-            type = MOTHERSHIP_TYPE;
-            enemySpawnTimer = 300;  /* 5 second delay after mothership */
-        } else if (score > 5000 && r < 5) {
-            /* 5% chance for boss after 5000 points */
-            type = 2;
-            enemySpawnTimer = 300;  /* Longer delay after boss */
-        } else if (score > 1000 && r < 25) {
-            /* 25% chance for shooter after 1000 points */
-            type = 1;
-            enemySpawnTimer = 90;  /* 1.5 second delay */
-        } else {
-            /* Basic enemy */
+        if (r < 40) {
+            /* 40% chance for type 0 enemy (uses enemy1.bmp) */
             type = 0;
-            enemySpawnTimer = 45;  /* 0.75 second delay */
+            enemySpawnTimer = 45;
+        } else if (r < 70) {
+            /* 30% chance for type 1 enemy (uses enemy2.bmp) */
+            type = 1;
+            enemySpawnTimer = 60;
+        } else {
+            /* 30% chance for type 2 enemy (uses enemy3.bmp) */
+            type = 2;
+            enemySpawnTimer = 75;
         }
         
         SpawnEnemy(type);
@@ -1570,68 +865,22 @@ void SpawnEnemy(int type)
 {
     int i;
     int width, height, health, scoreValue;
-    int sizeVariation;
     
-    /* Random size variation - make some smaller, some larger */
-    sizeVariation = (rand() % 11) - 5;  /* -5 to +5 size variation */
+    /* Set properties based on enemy type - all same size but different attributes */
+    width = height = ENEMY_SIZE;
     
-    /* Set properties based on enemy type */
     if (type == 0) {
-        /* Basic enemy - flying saucer with size variations */
-        width = height = ENEMY_SIZE + sizeVariation;
-        
-        /* Ensure minimum size */
-        if (width < ENEMY_SIZE - 5) width = height = ENEMY_SIZE - 5;
-        
+        /* Basic enemy (enemy1.bmp) */
         health = 1;
         scoreValue = 10;
-        
-        /* Larger ships are worth more points and have more health */
-        if (width > ENEMY_SIZE) {
-            health = 2;
-            scoreValue = 15;
-        }
     } else if (type == 1) {
-        /* Shooting enemy - varied sizes */
-        width = height = (ENEMY_SIZE + 5) + sizeVariation;
-        
-        /* Ensure minimum size */
-        if (width < ENEMY_SIZE) width = height = ENEMY_SIZE;
-        
+        /* Shooting enemy (enemy2.bmp) */  
         health = 2;
         scoreValue = 20;
-        
-        /* Larger ships have more health and are worth more */
-        if (width > ENEMY_SIZE + 5) {
-            health = 3;
-            scoreValue = 25;
-        }
     } else if (type == 2) {
-        /* Boss - some variation but always large */
-        sizeVariation = (rand() % 11) - 3;  /* Less variation for bosses, -3 to +7 */
-        width = (ENEMY_SIZE * 2) + sizeVariation;
-        height = (ENEMY_SIZE * 2) + sizeVariation;
-        
-        /* Ensure minimum boss size */
-        if (width < ENEMY_SIZE * 1.5) width = height = (int)(ENEMY_SIZE * 1.5);
-        
-        health = 8 + (width - ENEMY_SIZE * 2) / 2;  /* Base health + bonus for size */
-        scoreValue = 100 + (width - ENEMY_SIZE * 2) * 5;  /* Base score + bonus for size */
-    } else if (type == MOTHERSHIP_TYPE) {
-        /* Mothership - massive, rare ship with some size variation */
-        sizeVariation = (rand() % 21) - 10;  /* -10 to +10 variation, but still huge */
-        
-        /* Mothership is 3-4x regular enemy size */
-        width = (ENEMY_SIZE * 3) + sizeVariation;
-        
-        /* Make it wider than tall for that classic mothership look */
-        height = (int)(width * 0.75);
-        
-        /* Very tough with lots of health */
-        health = 20 + (width - ENEMY_SIZE * 3) / 2;
-        
-        /* Worth many points */
-        scoreValue = 500 + (width - ENEMY_SIZE * 3) * 10;
+        /* Advanced enemy (enemy3.bmp) */
+        health = 3;
+        scoreValue = 30;
     }
     
     /* Find an inactive enemy slot */
@@ -1662,11 +911,18 @@ void ShootLaser(int x, int y, int isEnemy)
     }
     
     /* Set properties based on laser type */
-    if (isEnemy) {
+    if (isEnemy == 1) {
+        /* Regular enemy laser */
         width = LASER_WIDTH;
         height = LASER_HEIGHT;
         speed = ENEMY_LASER_SPEED;
+    } else if (isEnemy == 2) {
+        /* Fast enemy laser (for enemy type 2) */
+        width = LASER_WIDTH;
+        height = LASER_HEIGHT;
+        speed = ENEMY_LASER_SPEED * 2; /* Twice as fast */
     } else {
+        /* Player laser */
         width = LASER_WIDTH;
         height = LASER_HEIGHT;
         speed = PLAYER_LASER_SPEED;
@@ -1701,11 +957,18 @@ void ShootAimedLaser(int x, int y, int dx, int dy, int isEnemy)
     }
     
     /* Set properties based on laser type */
-    if (isEnemy) {
+    if (isEnemy == 1) {
+        /* Regular enemy laser */
         width = LASER_WIDTH;
         height = LASER_HEIGHT;
         speed = ENEMY_LASER_SPEED;
+    } else if (isEnemy == 2) {
+        /* Fast enemy laser (for enemy type 2) */
+        width = LASER_WIDTH;
+        height = LASER_HEIGHT;
+        speed = ENEMY_LASER_SPEED * 2; /* Twice as fast */
     } else {
+        /* Player laser */
         width = LASER_WIDTH;
         height = LASER_HEIGHT;
         speed = PLAYER_LASER_SPEED;
@@ -1832,8 +1095,13 @@ void RestartGame(void)
 {
     int i;
     
-    /* Only restart if game is over */
+    /* Only restart if game is over and timer has expired */
     if (!gameOver) {
+        return;
+    }
+    
+    /* Don't allow restart until the timer has reached 0 */
+    if (gameOverTimer > 0) {
         return;
     }
     
@@ -1863,4 +1131,67 @@ void RestartGame(void)
     for (i = 0; i < MAX_EXPLOSIONS; i++) {
         explosions[i].active = 0;
     }
+}
+
+/* Function removed since we now load bitmaps from resources */
+
+void DrawSprite(HDC hdc, HBITMAP hbm, int x, int y, int width, int height)
+{
+    HDC hdcMem;
+    BITMAP bm;
+    COLORREF crTransparent = RGB(0, 0, 0); /* Black is transparent */
+    
+    /* Create a memory DC */
+    hdcMem = CreateCompatibleDC(hdc);
+    
+    /* Select the bitmap into the DC */
+    SelectObject(hdcMem, hbm);
+    
+    /* Get the bitmap dimensions */
+    GetObject(hbm, sizeof(BITMAP), &bm);
+    
+    /* Draw the bitmap with transparency - using TransparentBlt equivalent */
+    /* Since we're on older Windows, manually implement transparency */
+    {
+        HDC hdcMask, hdcColor;
+        HBITMAP hbmMask, hbmColor, hbmOldMask, hbmOldColor;
+        
+        /* Create DCs for the mask and colored image */
+        hdcMask = CreateCompatibleDC(hdc);
+        hdcColor = CreateCompatibleDC(hdc);
+        
+        /* Create monochrome and color bitmaps */
+        hbmMask = CreateBitmap(bm.bmWidth, bm.bmHeight, 1, 1, NULL);
+        hbmColor = CreateCompatibleBitmap(hdc, bm.bmWidth, bm.bmHeight);
+        
+        /* Select the bitmaps into the DCs */
+        hbmOldMask = SelectObject(hdcMask, hbmMask);
+        hbmOldColor = SelectObject(hdcColor, hbmColor);
+        
+        /* Set the background color for the source image */
+        SetBkColor(hdcMem, crTransparent);
+        
+        /* Create the mask - white is transparent area, black is the shape */
+        BitBlt(hdcMask, 0, 0, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCCOPY);
+        
+        /* Create the inverse mask for the colored portion */
+        BitBlt(hdcColor, 0, 0, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCCOPY);
+        
+        /* Combine the mask and the destination */
+        StretchBlt(hdc, x, y, width, height, hdcMask, 0, 0, bm.bmWidth, bm.bmHeight, SRCAND);
+        
+        /* Combine the color and the destination */
+        StretchBlt(hdc, x, y, width, height, hdcColor, 0, 0, bm.bmWidth, bm.bmHeight, SRCPAINT);
+        
+        /* Clean up */
+        SelectObject(hdcMask, hbmOldMask);
+        SelectObject(hdcColor, hbmOldColor);
+        DeleteObject(hbmMask);
+        DeleteObject(hbmColor);
+        DeleteDC(hdcMask);
+        DeleteDC(hdcColor);
+    }
+    
+    /* Clean up */
+    DeleteDC(hdcMem);
 }

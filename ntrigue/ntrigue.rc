@@ -1,0 +1,6 @@
+#include "resource.h"
+
+101 BITMAP "ship.bmp"
+102 BITMAP "enemy1.bmp"
+103 BITMAP "enemy2.bmp"
+104 BITMAP "enemy3.bmp"
