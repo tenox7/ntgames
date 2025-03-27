@@ -1,0 +1,32 @@
+#include <windows.h>
+
+/* Bitmaps */
+#define IDB_ROBOARM 201
+#define IDB_MIPS 202
+#define IDB_AXP 203
+#define IDB_PPC 204
+#define IDB_ARM 205
+#define IDB_SOCKET 206
+#define IDB_SOCKET_MIPS 207
+#define IDB_SOCKET_AXP 208
+#define IDB_SOCKET_PPC 209
+#define IDB_SOCKET_ARM 210
+
+/* Icon */
+#define IDI_RISCOBAN 101
+
+/* Resources */
+IDB_ROBOARM BITMAP "roboarm.bmp"
+IDB_MIPS BITMAP "mips.bmp"
+IDB_AXP BITMAP "axp.bmp"
+IDB_PPC BITMAP "ppc.bmp"
+IDB_ARM BITMAP "arm.bmp"
+IDB_SOCKET BITMAP "socket.bmp"
+IDB_SOCKET_MIPS BITMAP "socket-mips.bmp"
+IDB_SOCKET_AXP BITMAP "socket-axp.bmp"
+IDB_SOCKET_PPC BITMAP "socket-ppc.bmp"
+IDB_SOCKET_ARM BITMAP "socket-arm.bmp"
+IDI_RISCOBAN ICON "risc.ico"
+
+/* Level Resources - included from generated file */
+#include "levels.rc"

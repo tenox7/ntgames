@@ -1,0 +1,14 @@
+all: RISCoban.exe
+
+RISCoban.exe: RISCoban.obj RISCoban.res
+	link.exe /nologo /subsystem:windows RISCoban.obj RISCoban.res user32.lib gdi32.lib
+
+RISCoban.obj: RISCoban.c
+	cl.exe -D_AXP64_=1 -D_ALPHA64_=1 -DALPHA=1 -DWIN64 -D_WIN64 -DWIN32 -D_WIN32  -Wp64 -W4 -Ap64  /c RISCoban.c
+
+RISCoban.res: RISCoban.rc roboarm.bmp mips.bmp axp.bmp ppc.bmp arm.bmp socket.bmp socket-mips.bmp socket-axp.bmp socket-ppc.bmp socket-arm.bmp risc.ico levels.rc
+	rc.exe RISCoban.rc
+
+clean:
+	-del /f /q RISCoban.exe RISCoban.obj RISCoban.res *.pdb *.ilk del *.bak *.tmp err.out
+
