@@ -8,6 +8,9 @@
 #include <stdlib.h>  /* For qsort */
 #include <search.h>  /* For _findfirst on some compilers */
 
+/* Flag for Intel CPU detection */
+BOOL isIntelProcessor = FALSE;
+
 /* Resource identifiers */
 #define IDB_ROBOARM 201
 #define IDB_MIPS 202
@@ -89,6 +92,8 @@ void ScanLevelFiles(void);
 BOOL LoadNextLevel(void);
 void UpdateWindowTitle(HWND hwnd, const char *levelPath);
 int CountBoxes(void);
+void CheckProcessorType(void);
+void DrawBSODScreen(HDC hdc, RECT clientRect);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 /* String comparison function for qsort */
@@ -1077,6 +1082,94 @@ BOOL CheckWin(void)
     return TRUE;
 }
 
+/* Check processor type using GetSystemInfo */
+void CheckProcessorType(void)
+{
+    SYSTEM_INFO sysInfo;
+    
+    /* Get system information */
+    GetSystemInfo(&sysInfo);
+    
+    /* Check if processor is Intel (x86) */
+    if (sysInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL) {
+        isIntelProcessor = TRUE;
+    } else {
+        isIntelProcessor = FALSE;
+    }
+}
+
+/* Draw a blue screen of death for Intel processors */
+void DrawBSODScreen(HDC hdc, RECT clientRect)
+{
+    HBRUSH blueBrush;
+    HFONT hTitleFont, hFont, hOldFont;
+    RECT titleRect, textRect, infoRect;
+    int margin = 25;
+    
+    /* Create blue background brush (Windows NT BSOD color) */
+    blueBrush = CreateSolidBrush(RGB(0, 0, 128));
+    FillRect(hdc, &clientRect, blueBrush);
+    DeleteObject(blueBrush);
+    
+    /* Set text color to white */
+    SetTextColor(hdc, RGB(255, 255, 255));
+    SetBkColor(hdc, RGB(0, 0, 128));
+    
+    /* Use system fixed font for authentic BSOD look */
+    hTitleFont = (HFONT)GetStockObject(SYSTEM_FIXED_FONT);
+    
+    /* Use the same system font for body text */
+    hFont = (HFONT)GetStockObject(SYSTEM_FIXED_FONT);
+    
+    /* Set up title rectangle at the top */
+    titleRect = clientRect;
+    titleRect.left += margin;
+    titleRect.top += margin;
+    titleRect.right -= margin;
+    titleRect.bottom = titleRect.top + 25;
+    
+    /* Set up main text rectangle */
+    textRect = clientRect;
+    textRect.left += margin;
+    textRect.top = titleRect.bottom + 15;
+    textRect.right -= margin;
+    textRect.bottom = textRect.top + 150;
+    
+    /* Set up information rectangle at the bottom */
+    infoRect = clientRect;
+    infoRect.left += margin;
+    infoRect.top = textRect.bottom + 5;
+    infoRect.right -= margin;
+    infoRect.bottom -= margin;
+    
+    /* Draw title with larger font */
+    hOldFont = SelectObject(hdc, hTitleFont);
+    DrawText(hdc, "RISCOBAN - SYSTEM ERROR", -1, &titleRect, DT_LEFT);
+    
+    /* Draw main error message */
+    SelectObject(hdc, hFont);
+    DrawText(hdc, 
+             "A fatal exception 0x0000007B has occurred at 0028:C0011E36 in VXD INTEL(01) +\r\n"
+             "0000D4F1. The current application will be terminated.\r\n\r\n"
+             "ERROR: WRONG CPU TYPE DETECTED\r\n"
+             "INTEL PROCESSOR INVALID EXCEPTION 0xC0000418\r\n\r\n"
+             "The system has detected that the processor is not RISC-compatible.\r\n"
+             "This application requires a RISC processor such as MIPS, Alpha, ARM, or PowerPC.\r\n"
+             "Intel x86 processors are not supported by this application.\r\n\r\n"
+             "* Press any key to terminate the application.",
+             -1, &textRect, DT_LEFT);
+    
+    /* Draw bottom information */
+    DrawText(hdc, 
+             "Technical information:\r\n\r\n"
+             "*** STOP: 0x0000007B (0xC0000418,0xFFFFFFFF,0x00000000,0x00000000)\r\n"
+             "*** INTEL.SYS - Address C0011E36 base at C0010000, DateStamp 3d6dd67e",
+             -1, &infoRect, DT_LEFT);
+    
+    /* Clean up - no need to delete stock objects */
+    SelectObject(hdc, hOldFont);
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch(msg)
@@ -1090,6 +1183,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             break;
 
         case WM_KEYDOWN:
+            /* If running on Intel CPU, any key exits the program */
+            if (isIntelProcessor) {
+                PostQuitMessage(0);
+                break;
+            }
+            
+            /* Normal game controls for non-Intel CPUs */
             switch(wParam)
             {
                 case VK_UP:
@@ -1153,9 +1253,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             {
                 PAINTSTRUCT ps;
                 HDC hdc = BeginPaint(hwnd, &ps);
-
-                /* Draw the game grid with double-buffering */
-                DrawGrid(hdc);
+                RECT clientRect;
+                
+                /* Get client area dimensions */
+                GetClientRect(hwnd, &clientRect);
+                
+                if (isIntelProcessor) {
+                    /* Draw BSOD for Intel processors */
+                    DrawBSODScreen(hdc, clientRect);
+                } else {
+                    /* Draw normal game grid for RISC processors */
+                    DrawGrid(hdc);
+                }
 
                 EndPaint(hwnd, &ps);
             }
@@ -1186,6 +1295,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     WNDCLASSEX wc;
     HWND hwnd;
     MSG Msg;
+    
+    /* Check processor type */
+    CheckProcessorType();
 
     /* Load all bitmaps from resources */
     hRoboArmBitmap = LoadBitmap(hInstance, MAKEINTRESOURCE(IDB_ROBOARM));
@@ -1238,12 +1350,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     /* Create the Window with level dimensions */
     {
         RECT rect;
+        int windowWidth, windowHeight;
+
+        if (isIntelProcessor) {
+            /* For BSOD, use fixed larger size (720x480 client area) */
+            windowWidth = 720;
+            windowHeight = 480;
+        } else {
+            /* Normal game window for RISC processors */
+            windowWidth = CELL_SIZE * levelWidth + 20;  /* Client area width with margin */
+            windowHeight = CELL_SIZE * levelHeight + 20; /* Client area height with margin */
+        }
 
         /* Set desired client area size */
         rect.left = 0;
         rect.top = 0;
-        rect.right = CELL_SIZE * levelWidth + 20;  /* Client area width with margin */
-        rect.bottom = CELL_SIZE * levelHeight + 20; /* Client area height with margin */
+        rect.right = windowWidth;
+        rect.bottom = windowHeight;
 
         /* Adjust the rectangle to include non-client area */
         AdjustWindowRect(&rect, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE);
@@ -1265,8 +1388,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 0;
     }
 
-    /* Set window title for the initial level */
-    UpdateWindowTitle(hwnd, currentLevel);
+    /* Set window title based on processor type */
+    if (isIntelProcessor) {
+        SetWindowText(hwnd, "SYSTEM ERROR");
+    } else {
+        UpdateWindowTitle(hwnd, currentLevel);
+    }
 
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
