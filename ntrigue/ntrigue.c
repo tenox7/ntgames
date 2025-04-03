@@ -125,6 +125,9 @@ int shootCooldown = 0;
 int enemySpawnTimer = 0;
 int frameCount = 0;
 int gameOverTimer = 0;
+int playerDeathSequence = 0;
+int playerDeathTimer = 0;
+int playerDeathExplosionCount = 0;
 
 /* GDI objects */
 HINSTANCE hInst;
@@ -499,8 +502,8 @@ void DrawScene(HDC hdc)
         DeleteObject(healthOutline);
     }
 
-    /* Draw player ship if not game over */
-    if (!gameOver) {
+    /* Draw player ship if not in death sequence or game over */
+    if (!gameOver && !playerDeathSequence) {
         /* Draw player ship using sprite */
         DrawSprite(hdc, hbmShip, playerX - PLAYER_SIZE/2, playerY - PLAYER_SIZE/2, PLAYER_SIZE, PLAYER_SIZE);
     }
@@ -561,11 +564,11 @@ void DrawScene(HDC hdc)
             HBRUSH explosionBrush;
             
             if (explosions[i].type == 0) {
-                /* Enemy explosion - orange */
-                explosionBrush = CreateSolidBrush(RGB(255, 165, 0));
+                /* Enemy explosion - yellow from 16-color system palette */
+                explosionBrush = CreateSolidBrush(RGB(255, 255, 0));
             } else {
-                /* Player explosion - blue */
-                explosionBrush = CreateSolidBrush(RGB(30, 144, 255));
+                /* Player explosion - red from 16-color system palette */
+                explosionBrush = CreateSolidBrush(RGB(255, 0, 0));
             }
             
             SelectObject(hdc, explosionBrush);
@@ -575,8 +578,8 @@ void DrawScene(HDC hdc)
         }
     }
     
-    /* Display Game Over message as a Windows NT BSOD */
-    if (gameStarted && gameOver) {
+    /* Display Game Over message as a Windows NT BSOD (only after death sequence is complete) */
+    if (gameStarted && gameOver && !playerDeathSequence) {
         RECT rect;
         HFONT consoleFont, oldFont;
         char bsodText[30][128]; /* Array to hold multiple lines of BSOD text */
@@ -684,6 +687,50 @@ void UpdateGame(void)
     
     frameCount++;
     
+    /* Handle player death sequence */
+    if (playerDeathSequence) {
+        playerDeathTimer--;
+        
+        /* Generate additional explosions during death sequence */
+        if (frameCount % 8 == 0 && playerDeathExplosionCount < 15) {
+            /* Create random explosions around the player position */
+            int offsetX = (rand() % 80) - 40;
+            int offsetY = (rand() % 80) - 40;
+            
+            /* Alternate between enemy (yellow) and player (red) explosions for visual variety */
+            int explosionType = (playerDeathExplosionCount % 2);
+            CreateExplosion(playerX + offsetX, playerY + offsetY, explosionType);
+            playerDeathExplosionCount++;
+            
+            /* Create a second explosion for more dramatic effect */
+            if (playerDeathExplosionCount < 12) {
+                offsetX = (rand() % 60) - 30;
+                offsetY = (rand() % 60) - 30;
+                explosionType = ((playerDeathExplosionCount + 1) % 2);
+                CreateExplosion(playerX + offsetX, playerY + offsetY, explosionType);
+            }
+        }
+        
+        /* When death sequence is complete, transition to game over */
+        if (playerDeathTimer <= 0) {
+            playerDeathSequence = 0;
+            gameOver = 1;
+            gameOverTimer = 300; /* 5 seconds at 60 FPS */
+        }
+        
+        /* Continue updating explosions during death sequence */
+        for (i = 0; i < MAX_EXPLOSIONS; i++) {
+            if (explosions[i].active) {
+                explosions[i].radius += 1;
+                if (explosions[i].radius >= explosions[i].maxRadius) {
+                    explosions[i].active = 0;
+                }
+            }
+        }
+        
+        return; /* Only update explosions during death sequence */
+    }
+    
     if (gameOver) {
         /* If game is over, just update the game over timer */
         if (gameOverTimer > 0) {
@@ -748,8 +795,12 @@ void UpdateGame(void)
                         CreateExplosion(playerX, playerY, 1);
                         
                         if (playerHealth <= 0) {
-                            gameOver = 1;
-                            gameOverTimer = 300; /* 5 seconds at 60 FPS */
+                            /* Start death sequence instead of immediately showing game over */
+                            playerDeathSequence = 1;
+                            playerDeathTimer = 120; /* 2 seconds of death sequence at 60 FPS */
+                            playerDeathExplosionCount = 0;
+                            /* Create initial explosion */
+                            CreateExplosion(playerX, playerY, 1);
                         }
                     }
                 }
@@ -814,9 +865,12 @@ void UpdateGame(void)
                     enemies[i].active = 0;
                     
                     if (playerHealth <= 0) {
+                        /* Start death sequence instead of immediately showing game over */
+                        playerDeathSequence = 1;
+                        playerDeathTimer = 120; /* 2 seconds of death sequence at 60 FPS */
+                        playerDeathExplosionCount = 0;
+                        /* Create initial explosion */
                         CreateExplosion(playerX, playerY, 1);
-                        gameOver = 1;
-                        gameOverTimer = 300; /* 5 seconds at 60 FPS */
                     }
                     continue;
                 }
@@ -1043,11 +1097,17 @@ void CreateExplosion(int x, int y, int type)
     
     /* Set explosion size based on type */
     if (type == 0) {
-        /* Enemy explosion */
+        /* Enemy explosion (yellow) */
         maxRadius = 20;
     } else {
-        /* Player explosion */
+        /* Player explosion (red) */
         maxRadius = 30;
+    }
+    
+    /* For death sequence, create additional variation in explosion sizes */
+    if (playerDeathSequence) {
+        /* Add variation to explosion sizes during death sequence */
+        maxRadius += rand() % 15;
     }
     
     /* Find an inactive explosion slot */
@@ -1154,6 +1214,9 @@ void RestartGame(void)
     gameOver = 0;
     shootCooldown = 0;
     enemySpawnTimer = 0;
+    playerDeathSequence = 0;
+    playerDeathTimer = 0;
+    playerDeathExplosionCount = 0;
     
     /* Reset player position */
     playerX = WINDOW_WIDTH / 2;
