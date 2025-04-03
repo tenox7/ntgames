@@ -116,7 +116,7 @@ Star stars[STAR_COUNT];
 
 /* Player state */
 int playerX, playerY;
-int playerHealth = 3;
+int playerHealth = 5;
 int score = 0;
 int level = 1;
 int gameOver = 0;
@@ -128,6 +128,7 @@ int gameOverTimer = 0;
 int playerDeathSequence = 0;
 int playerDeathTimer = 0;
 int playerDeathExplosionCount = 0;
+int enemiesKilled = 0;
 
 /* GDI objects */
 HINSTANCE hInst;
@@ -443,12 +444,12 @@ void DrawScene(HDC hdc)
     char windowTitle[80];
     int i;
 
-    /* Update window title with score, level, and CPU info */
+    /* Update window title */
     if (gameStarted && gameOver) {
         wsprintf(windowTitle, "SYSTEM ERROR - Memory_Management_Exception 0x0000000A");
     } else {
-        wsprintf(windowTitle, "NT Rigue [%s %s] - Score: %d  Level: %d  Health: %d - ESC/Q to Exit", 
-                cpuArchStr, procTypeStr, score, level, playerHealth);
+        wsprintf(windowTitle, "NT Rigue [%s %s] - ESC/Q to Exit", 
+                cpuArchStr, procTypeStr);
     }
     SetWindowText(hwnd, windowTitle);
 
@@ -462,20 +463,33 @@ void DrawScene(HDC hdc)
     /* Draw starry background */
     DrawStars(hdc);
 
-    /* Draw health bar at the top of the screen as boxes */
+    /* Draw UI elements at the top of the screen */
     {
         int i;
         int boxSize = 20;   /* Size of each health box */
         int boxPadding = 5; /* Space between boxes */
         int startX = 20;    /* Starting X position */
         int startY = 20;    /* Y position from top */
-        int maxDisplayHealth = 3; /* Show only 3 boxes, matching max health */
+        int maxDisplayHealth = 5; /* Show 5 boxes for health */
+        int textY = 20;     /* Y position for text */
         HBRUSH healthBrush, healthOutlineBrush;
         HPEN healthOutline;
+        HFONT uiFont, oldFont;
+        char statusText[80];
+        
+        /* Create font for status display */
+        uiFont = CreateFont(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                          ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                          DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "System");
+        oldFont = SelectObject(hdc, uiFont);
+        
+        /* Set text color for status display */
+        SetTextColor(hdc, RGB(255, 255, 255));
+        SetBkMode(hdc, TRANSPARENT);
         
         /* Create brushes for health boxes */
-        healthBrush = CreateSolidBrush(RGB(0, 128, 0));        /* Green for active health from standard palette */
-        healthOutlineBrush = CreateSolidBrush(RGB(128, 128, 128)); /* Gray for empty health from standard palette */
+        healthBrush = CreateSolidBrush(RGB(0, 255, 0));        /* Bright green for active health from 16-color system palette */
+        healthOutlineBrush = CreateSolidBrush(RGB(128, 128, 128)); /* Gray for empty health from 16-color system palette */
         healthOutline = CreatePen(PS_SOLID, 2, RGB(200, 200, 200));
         
         /* Draw health boxes */
@@ -496,7 +510,32 @@ void DrawScene(HDC hdc)
                      startY + boxSize);
         }
         
+        /* Draw level and enemies killed on screen */
+        if (!gameOver && !playerDeathSequence) {
+            /* Display LEVEL in center of screen */
+            wsprintf(statusText, "LEVEL: %d", level);
+            TextOut(hdc, WINDOW_WIDTH / 2 - 40, textY, statusText, lstrlen(statusText));
+            
+            /* Display KILLS on right side of screen */
+            wsprintf(statusText, "KILLS: %d", enemiesKilled);
+            TextOut(hdc, WINDOW_WIDTH - 120, textY, statusText, lstrlen(statusText));
+            
+            /* Display HEALTH indicator next to health boxes */
+            TextOut(hdc, startX + (maxDisplayHealth * (boxSize + boxPadding)) + 10, 
+                   textY, "HEALTH", 6);
+                   
+            /* Display SCORE at the top right */
+            wsprintf(statusText, "SCORE: %d", score);
+            TextOut(hdc, WINDOW_WIDTH - 120, textY + 25, statusText, lstrlen(statusText));
+            
+            /* Display CPU info at the bottom left */
+            wsprintf(statusText, "Iron: %s %s", cpuArchStr, procTypeStr);
+            TextOut(hdc, 20, WINDOW_HEIGHT - 25, statusText, lstrlen(statusText));
+        }
+        
         /* Clean up */
+        SelectObject(hdc, oldFont);
+        DeleteObject(uiFont);
         DeleteObject(healthBrush);
         DeleteObject(healthOutlineBrush);
         DeleteObject(healthOutline);
@@ -828,6 +867,7 @@ void UpdateGame(void)
                             if (enemies[j].health <= 0) {
                                 /* Award points based on enemy type */
                                 score += enemies[j].scoreValue;
+                                enemiesKilled++;
                                 
                                 /* Create larger explosion for destroyed enemy */
                                 CreateExplosion(enemies[j].x, enemies[j].y, 0);
@@ -1208,7 +1248,7 @@ void RestartGame(void)
     }
     
     /* Reset game state */
-    playerHealth = 3;
+    playerHealth = 5;
     score = 0;
     level = 1;
     gameOver = 0;
@@ -1217,6 +1257,7 @@ void RestartGame(void)
     playerDeathSequence = 0;
     playerDeathTimer = 0;
     playerDeathExplosionCount = 0;
+    enemiesKilled = 0;
     
     /* Reset player position */
     playerX = WINDOW_WIDTH / 2;
