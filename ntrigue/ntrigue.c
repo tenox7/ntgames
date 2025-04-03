@@ -166,9 +166,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     int i;
     HANDLE hProcess;
 
-    /* Set process to high priority for better performance */
+    /* Set process to highest priority for maximum performance */
     hProcess = GetCurrentProcess();
-    SetPriorityClass(hProcess, HIGH_PRIORITY_CLASS);
+    SetPriorityClass(hProcess, REALTIME_PRIORITY_CLASS);
+    
+    /* Set this thread to highest priority as well */
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
     /* Register window class with optimized styles */
     wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
