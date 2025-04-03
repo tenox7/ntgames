@@ -6,19 +6,61 @@
 #include <mmsystem.h> /* For timeBeginPeriod/timeEndPeriod */
 #include "resource.h" /* Include resource IDs */
 
+/* Define Windows System Colors if not defined */
+#ifndef COLOR_SCROLLBAR
+#define COLOR_SCROLLBAR         0
+#define COLOR_BACKGROUND        1
+#define COLOR_ACTIVECAPTION     2
+#define COLOR_INACTIVECAPTION   3
+#define COLOR_MENU              4
+#define COLOR_WINDOW            5
+#define COLOR_WINDOWFRAME       6
+#define COLOR_MENUTEXT          7
+#define COLOR_WINDOWTEXT        8
+#define COLOR_CAPTIONTEXT       9
+#define COLOR_ACTIVEBORDER      10
+#define COLOR_INACTIVEBORDER    11
+#define COLOR_APPWORKSPACE      12
+#define COLOR_HIGHLIGHT         13
+#define COLOR_HIGHLIGHTTEXT     14
+#define COLOR_BTNFACE           15
+#define COLOR_BTNSHADOW         16
+#define COLOR_GRAYTEXT          17
+#define COLOR_BTNTEXT           18
+#define COLOR_INACTIVECAPTIONTEXT 19
+#define COLOR_BTNHIGHLIGHT      20
+
+#define WHITE_BRUSH             0
+#define LTGRAY_BRUSH            1
+#define GRAY_BRUSH              2
+#define DKGRAY_BRUSH            3
+#define BLACK_BRUSH             4
+#define NULL_BRUSH              5
+#define WHITE_PEN               6
+#define BLACK_PEN               7
+#define NULL_PEN                8
+#define HOLLOW_BRUSH            NULL_BRUSH
+#define OEM_FIXED_FONT          10
+#define ANSI_FIXED_FONT         11
+#define ANSI_VAR_FONT           12
+#define SYSTEM_FONT             13
+#define DEVICE_DEFAULT_FONT     14
+#define DEFAULT_PALETTE         15
+#define SYSTEM_FIXED_FONT       16
+#define DEFAULT_GUI_FONT        17
+#define DC_BRUSH                18
+#define DC_PEN                  19
+#define STOCK_LAST              19
+
+#endif
+
 #pragma comment(lib, "winmm.lib") /* Link with winmm.lib for timer functions */
 
 /* Global variables for CPU info */
 char cpuArchStr[64];
 char procTypeStr[64];
 
-/* Define DC_PEN and DC_BRUSH for older Windows SDK */
-#ifndef DC_PEN
-#define DC_PEN 19
-#endif
-#ifndef DC_BRUSH
-#define DC_BRUSH 18
-#endif
+/* DC_PEN and DC_BRUSH already defined above */
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
@@ -429,8 +471,8 @@ void DrawScene(HDC hdc)
         HPEN healthOutline;
         
         /* Create brushes for health boxes */
-        healthBrush = CreateSolidBrush(RGB(30, 200, 30));        /* Green for active health */
-        healthOutlineBrush = CreateSolidBrush(RGB(100, 100, 100)); /* Gray for empty health */
+        healthBrush = CreateSolidBrush(RGB(0, 128, 0));        /* Green for active health from standard palette */
+        healthOutlineBrush = CreateSolidBrush(RGB(128, 128, 128)); /* Gray for empty health from standard palette */
         healthOutline = CreatePen(PS_SOLID, 2, RGB(200, 200, 200));
         
         /* Draw health boxes */
@@ -546,8 +588,8 @@ void DrawScene(HDC hdc)
         rect.right = WINDOW_WIDTH;
         rect.bottom = WINDOW_HEIGHT;
         
-        /* Fill with classic BSOD blue color */
-        FillRect(hdc, &rect, CreateSolidBrush(RGB(0, 0, 170)));
+        /* Fill with classic BSOD blue color from Windows System Palette */
+        FillRect(hdc, &rect, CreateSolidBrush(RGB(0, 0, 128)));
         
         /* Create console-like font for BSOD text */
         consoleFont = CreateFont(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
