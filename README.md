@@ -1,6 +1,6 @@
 # NT Games
 
-Classic games for NTOS. With source code and binaries for all platforms. Alpha, AXP64, ARM, AARCH64, MIPS, PowerPC, Itanium, etc.
+Remakes of some classic games for NTOS. Aimed mostly at NT RISC architectures. With source code and binaries for all platforms. Alpha, AXP64, ARM, AARCH64, MIPS, PowerPC, Itanium, etc.
 
 ## RISC building instructions
 
