@@ -1,0 +1,16 @@
+#include "resource.h"
+
+/* Architecture-specific player ships */
+101 BITMAP "arm.bmp"      /* ARM */
+102 BITMAP "arm.bmp"      /* ARM64 - using ARM for now */
+103 BITMAP "axp.bmp"      /* Alpha */
+104 BITMAP "axp.bmp"      /* Alpha64 - using Alpha for now */
+105 BITMAP "mips.bmp"     /* MIPS */
+106 BITMAP "ppc.bmp"      /* PowerPC */
+
+/* Enemy ships - Intel CPUs */
+107 BITMAP "386.bmp"      /* Intel 386 */
+108 BITMAP "486.bmp"      /* Intel 486 */
+109 BITMAP "586.bmp"      /* Intel Pentium */
+110 BITMAP "686.bmp"      /* Intel Pentium Pro/II */
+111 BITMAP "ia64.bmp"     /* Intel Itanium */
