@@ -1093,8 +1093,26 @@ void UpdateGame(void)
                             break;
                             
                         case 4:
-                            /* IA64/Itanium - rapid fire bullets (faster) */
-                            ShootLaser(enemies[i].x, enemies[i].y + enemies[i].height/2, 2);
+                            /* IA64/Itanium - shoots in all 8 directions */
+                            {
+                                int j;
+                                int directions[8][2] = {
+                                    {0, 20},    /* Down */
+                                    {20, 20},   /* Down-Right */
+                                    {20, 0},    /* Right */
+                                    {20, -20},  /* Up-Right */
+                                    {0, -20},   /* Up */
+                                    {-20, -20}, /* Up-Left */
+                                    {-20, 0},   /* Left */
+                                    {-20, 20}   /* Down-Left */
+                                };
+                                
+                                /* Shoot in all 8 directions */
+                                for (j = 0; j < 8; j++) {
+                                    ShootAimedLaser(enemies[i].x, enemies[i].y, 
+                                                    directions[j][0], directions[j][1], 2);
+                                }
+                            }
                             break;
                             
                         default:
@@ -1122,26 +1140,26 @@ void UpdateGame(void)
             /* Randomly choose enemy type with all five Intel CPU types available */
             r = rand() % 100;
             
-            if (r < 30) {
-                /* 30% chance for 386 (type 0) */
+            if (r < 25) {
+                /* 25% chance for 386 (type 0) */
                 type = 0;
                 enemySpawnTimer = 45;
-            } else if (r < 55) {
-                /* 25% chance for 486 (type 1) */
+            } else if (r < 45) {
+                /* 20% chance for 486 (type 1) */
                 type = 1;
                 enemySpawnTimer = 50;
-            } else if (r < 75) {
+            } else if (r < 65) {
                 /* 20% chance for 586/Pentium (type 2) */
                 type = 2;
                 enemySpawnTimer = 60;
-            } else if (r < 90) {
+            } else if (r < 80) {
                 /* 15% chance for 686/PentiumPro (type 3) */
                 type = 3; 
                 enemySpawnTimer = 70;
             } else {
-                /* 10% chance for IA64/Itanium (type 4) */
+                /* 20% chance for IA64/Itanium (type 4) - increased from 10% */
                 type = 4;
-                enemySpawnTimer = 80;
+                enemySpawnTimer = 60; /* Appear more frequently */
             }
             
             SpawnEnemy(type);
@@ -1191,9 +1209,9 @@ void SpawnEnemy(int type)
             scoreValue = 40;
             break;
         case 4:
-            /* IA64/Itanium - Strongest, rare */
-            health = 4;
-            scoreValue = 50;
+            /* IA64/Itanium - Super strong boss enemy */
+            health = 8;       /* Double health - very tough */
+            scoreValue = 100; /* Double points for killing this dangerous enemy */
             break;
         default:
             /* Fallback */
