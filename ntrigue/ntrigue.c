@@ -5,6 +5,7 @@
 #include <math.h>
 #include <mmsystem.h> /* For timeBeginPeriod/timeEndPeriod */
 #include "resource.h" /* Include resource IDs */
+#include "../arch.h"
 
 /* Define Windows System Colors if not defined */
 #ifndef COLOR_SCROLLBAR
@@ -215,46 +216,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SYSTEM_INFO sysInfo;
         GetSystemInfo(&sysInfo);
         
-        /* Determine CPU architecture */
-        switch(sysInfo.wProcessorArchitecture) {
-            case PROCESSOR_ARCHITECTURE_INTEL:
-                lstrcpy(cpuArchStr, "x86");
-                break;
-            case PROCESSOR_ARCHITECTURE_MIPS:
-                lstrcpy(cpuArchStr, "MIPS");
-                break;
-            case PROCESSOR_ARCHITECTURE_ALPHA:
-                lstrcpy(cpuArchStr, "Alpha");
-                break;
-            case PROCESSOR_ARCHITECTURE_PPC:
-                lstrcpy(cpuArchStr, "PowerPC");
-                break;
-            default:
-                lstrcpy(cpuArchStr, "Unknown");
-                break;
+        /* Determine CPU architecture - use arch.h */
+        if (sysInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_UNKNOWN) {
+            lstrcpy(cpuArchStr, PROCESSOR_ARCHITECTURE_STR_UNKNOWN);
+        } else if (sysInfo.wProcessorArchitecture < sizeof(ProcessorArchitectureNames)/sizeof(ProcessorArchitectureNames[0])) {
+            lstrcpy(cpuArchStr, ProcessorArchitectureNames[sysInfo.wProcessorArchitecture]);
+        } else {
+            lstrcpy(cpuArchStr, PROCESSOR_ARCHITECTURE_STR_UNKNOWN);
         }
         
-        /* Determine processor type */
-        switch(sysInfo.dwProcessorType) {
-            case PROCESSOR_INTEL_386:
-                lstrcpy(procTypeStr, "Intel 386");
-                break;
-            case PROCESSOR_INTEL_486:
-                lstrcpy(procTypeStr, "Intel 486");
-                break;
-            case PROCESSOR_INTEL_PENTIUM:
-                lstrcpy(procTypeStr, "Intel Pentium");
-                break;
-            case PROCESSOR_MIPS_R4000:
-                lstrcpy(procTypeStr, "MIPS R4000");
-                break;
-            case PROCESSOR_ALPHA_21064:
-                lstrcpy(procTypeStr, "Alpha 21064");
-                break;
-            default:
-                wsprintf(procTypeStr, "Type %d", sysInfo.dwProcessorType);
-                break;
-        }
+        /* Don't need processor type, just use architecture */
+        lstrcpy(procTypeStr, "");
     }
 
     /* Initialize game state */
@@ -451,8 +423,8 @@ void DrawScene(HDC hdc)
     if (gameStarted && gameOver) {
         wsprintf(windowTitle, "SYSTEM ERROR - Memory_Management_Exception 0x0000000A");
     } else {
-        wsprintf(windowTitle, "NT Rigue [%s %s] - ESC/Q to Exit", 
-                cpuArchStr, procTypeStr);
+        wsprintf(windowTitle, "NT Rigue [%s] - ESC/Q to Exit", 
+                cpuArchStr);
     }
     SetWindowText(hwnd, windowTitle);
 
@@ -532,7 +504,7 @@ void DrawScene(HDC hdc)
             TextOut(hdc, WINDOW_WIDTH - 120, textY + 25, statusText, lstrlen(statusText));
             
             /* Display CPU info at the bottom left */
-            wsprintf(statusText, "Iron: %s %s", cpuArchStr, procTypeStr);
+            wsprintf(statusText, "Iron: %s", cpuArchStr);
             TextOut(hdc, 20, WINDOW_HEIGHT - 25, statusText, lstrlen(statusText));
         }
         
