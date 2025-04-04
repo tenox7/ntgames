@@ -7,9 +7,10 @@
 #include <io.h>      /* For _findfirst, _findnext */
 #include <stdlib.h>  /* For qsort */
 #include <search.h>  /* For _findfirst on some compilers */
+#include "../arch.h"
 
-/* Flag for Intel CPU detection */
-BOOL isIntelProcessor = FALSE;
+/* Flag for allowed RISC processor detection */
+BOOL isAllowedProcessor = FALSE;
 
 /* Resource identifiers */
 #define IDB_ROBOARM 201
@@ -1082,7 +1083,7 @@ BOOL CheckWin(void)
     return TRUE;
 }
 
-/* Check processor type using GetSystemInfo */
+/* Check processor type using arch.h */
 void CheckProcessorType(void)
 {
     SYSTEM_INFO sysInfo;
@@ -1090,15 +1091,23 @@ void CheckProcessorType(void)
     /* Get system information */
     GetSystemInfo(&sysInfo);
     
-    /* Check if processor is Intel (x86) */
-    if (sysInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL) {
-        isIntelProcessor = TRUE;
-    } else {
-        isIntelProcessor = FALSE;
+    /* Check if processor is an allowed RISC architecture */
+    switch (sysInfo.wProcessorArchitecture) {
+        case PROCESSOR_ARCHITECTURE_MIPS:      /* MIPS */
+        case PROCESSOR_ARCHITECTURE_ALPHA:     /* Alpha */
+        case PROCESSOR_ARCHITECTURE_PPC:       /* PowerPC */
+        case PROCESSOR_ARCHITECTURE_ARM:       /* ARM */
+        case PROCESSOR_ARCHITECTURE_ALPHA64:   /* Alpha64 */
+        case PROCESSOR_ARCHITECTURE_ARM64:     /* ARM64 */
+            isAllowedProcessor = TRUE;
+            break;
+        default:
+            isAllowedProcessor = FALSE;
+            break;
     }
 }
 
-/* Draw a blue screen of death for Intel processors */
+/* Draw a blue screen of death for non-RISC processors */
 void DrawBSODScreen(HDC hdc, RECT clientRect)
 {
     HBRUSH blueBrush;
@@ -1184,7 +1193,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         case WM_KEYDOWN:
             /* If running on Intel CPU, any key exits the program */
-            if (isIntelProcessor) {
+            if (!isAllowedProcessor) {
                 PostQuitMessage(0);
                 break;
             }
@@ -1258,7 +1267,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 /* Get client area dimensions */
                 GetClientRect(hwnd, &clientRect);
                 
-                if (isIntelProcessor) {
+                if (!isAllowedProcessor) {
                     /* Draw BSOD for Intel processors */
                     DrawBSODScreen(hdc, clientRect);
                 } else {
@@ -1352,7 +1361,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         RECT rect;
         int windowWidth, windowHeight;
 
-        if (isIntelProcessor) {
+        if (!isAllowedProcessor) {
             /* For BSOD, use fixed larger size (720x480 client area) */
             windowWidth = 720;
             windowHeight = 480;
@@ -1389,7 +1398,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     /* Set window title based on processor type */
-    if (isIntelProcessor) {
+    if (!isAllowedProcessor) {
         SetWindowText(hwnd, "SYSTEM ERROR");
     } else {
         UpdateWindowTitle(hwnd, currentLevel);

@@ -18,4 +18,4 @@ RISCoban.res: RISCoban.rc roboarm.bmp mips.bmp axp.bmp ppc.bmp arm.bmp socket.bm
 	rc.exe RISCoban.rc
 
 clean:
-	-del /f /q RISCoban.exe RISCoban.obj RISCoban.res genlevels.exe genlevels.obj levels.h levels.rc *.pdb *.ilk del *.bak *.tmp err.out
+	-del /f /q RISCoban.exe RISCoban.obj RISCoban.res genlevels.exe genlevels.obj levels.rc *.pdb *.ilk del *.bak *.tmp err.out

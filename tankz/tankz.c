@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include "../arch.h"
 
 // Define min and max functions if they're not already defined
 #ifndef min
@@ -2242,56 +2243,25 @@ void UpdateWindowTitle(HWND hWnd)
 {
     char titleBuffer[150];
     char cpuArchStr[64] = "";
-    char procTypeStr[64] = "";
     SYSTEM_INFO sysInfo;
     
     // Get CPU information
     GetSystemInfo(&sysInfo);
     
-    // Determine CPU architecture
-    switch(sysInfo.wProcessorArchitecture) {
-        case PROCESSOR_ARCHITECTURE_INTEL:
-            lstrcpy(cpuArchStr, "x86");
-            break;
-        case PROCESSOR_ARCHITECTURE_MIPS:
-            lstrcpy(cpuArchStr, "MIPS");
-            break;
-        case PROCESSOR_ARCHITECTURE_ALPHA:
-            lstrcpy(cpuArchStr, "Alpha");
-            break;
-        case PROCESSOR_ARCHITECTURE_PPC:
-            lstrcpy(cpuArchStr, "PowerPC");
-            break;
-        default:
-            lstrcpy(cpuArchStr, "Unknown");
-            break;
+    // Determine CPU architecture using arch.h
+    if (sysInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_UNKNOWN) {
+        lstrcpy(cpuArchStr, PROCESSOR_ARCHITECTURE_STR_UNKNOWN);
+    } else if (sysInfo.wProcessorArchitecture < sizeof(ProcessorArchitectureNames)/sizeof(ProcessorArchitectureNames[0])) {
+        lstrcpy(cpuArchStr, ProcessorArchitectureNames[sysInfo.wProcessorArchitecture]);
+    } else {
+        lstrcpy(cpuArchStr, PROCESSOR_ARCHITECTURE_STR_UNKNOWN);
     }
     
-    // Determine processor type
-    switch(sysInfo.dwProcessorType) {
-        case PROCESSOR_INTEL_386:
-            lstrcpy(procTypeStr, "Intel 386");
-            break;
-        case PROCESSOR_INTEL_486:
-            lstrcpy(procTypeStr, "Intel 486");
-            break;
-        case PROCESSOR_INTEL_PENTIUM:
-            lstrcpy(procTypeStr, "Intel Pentium");
-            break;
-        case PROCESSOR_MIPS_R4000:
-            lstrcpy(procTypeStr, "MIPS R4000");
-            break;
-        case PROCESSOR_ALPHA_21064:
-            lstrcpy(procTypeStr, "Alpha 21064");
-            break;
-        default:
-            wsprintf(procTypeStr, "Type %d", sysInfo.dwProcessorType);
-            break;
-    }
+    // We only want to display the architecture, not the processor type
     
-    // Format the title with CPU info and kill count
-    sprintf(titleBuffer, "%s [%s %s] - Enemies Destroyed: %d", 
-            szAppName, cpuArchStr, procTypeStr, currentSessionKills);
+    // Format the title with CPU architecture and kill count
+    sprintf(titleBuffer, "%s [%s] - Enemies Destroyed: %d", 
+            szAppName, cpuArchStr, currentSessionKills);
     
     // Set the window title if window handle is valid
     if (hWnd) {
