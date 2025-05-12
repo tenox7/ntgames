@@ -859,16 +859,10 @@ void DrawGround(HDC hdc) {
             }
         }
 
-        /* Landing pad markers only (no green line) */
+        /* Landing pad - no vertical line markers */
         whitePen = CreatePen(PS_SOLID, 2, RGB(255, 255, 255));
         if (whitePen != NULL) {
             SelectObject(hdc, whitePen);
-
-            /* Add landing pad markers */
-            MoveToEx(hdc, g_field.landingPadLeft, g_field.terrainPoints[landingPadIndex].y, NULL);
-            LineTo(hdc, g_field.landingPadLeft, g_field.terrainPoints[landingPadIndex].y - 5);
-            MoveToEx(hdc, g_field.landingPadRight, g_field.terrainPoints[landingPadIndex].y, NULL);
-            LineTo(hdc, g_field.landingPadRight, g_field.terrainPoints[landingPadIndex].y - 5);
 
             DeleteObject(whitePen);
         }
