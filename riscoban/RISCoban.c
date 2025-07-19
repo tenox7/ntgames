@@ -1093,12 +1093,12 @@ void CheckProcessorType(void)
     
     /* Check if processor is an allowed RISC architecture */
     switch (sysInfo.wProcessorArchitecture) {
-        case PROCESSOR_ARCHITECTURE_MIPS:      /* MIPS */
-        case PROCESSOR_ARCHITECTURE_ALPHA:     /* Alpha */
-        case PROCESSOR_ARCHITECTURE_PPC:       /* PowerPC */
-        case PROCESSOR_ARCHITECTURE_ARM:       /* ARM */
-        case PROCESSOR_ARCHITECTURE_ALPHA64:   /* Alpha64 */
-        case PROCESSOR_ARCHITECTURE_ARM64:     /* ARM64 */
+        case PROCESSOR_ARCHITECTURE_MIPS:
+        case PROCESSOR_ARCHITECTURE_ALPHA:
+        case PROCESSOR_ARCHITECTURE_ALPHA64:
+        case PROCESSOR_ARCHITECTURE_PPC:
+        case PROCESSOR_ARCHITECTURE_ARM:
+        case PROCESSOR_ARCHITECTURE_ARM64:
             isAllowedProcessor = TRUE;
             break;
         default:
