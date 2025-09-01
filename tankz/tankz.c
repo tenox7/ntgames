@@ -158,6 +158,7 @@ char szWindowClass[] = "TankzWindow";
 int currentSessionKills = 0;  // Track kills for current life session
 BOOL radarActive = FALSE;     // Track if radar mode is active
 BOOL gamePaused = TRUE;       // Start the game paused
+BOOL inGamePaused = FALSE;    // Track if paused during gameplay (P key)
 BOOL mouseWasPressed = FALSE; // Track mouse button state for handling clicks
 
 // Double buffer variables
@@ -1760,12 +1761,14 @@ void UpdateGame()
         if (mouseIsPressed) {
             gamePaused = FALSE;
             pauseTimer = 0;
+            UpdateWindowTitle(FindWindow(szWindowClass, NULL));
         }
         
         // Check for space or enter key to unpause
         if (GetAsyncKeyState(VK_SPACE) & 0x8000) {
             gamePaused = FALSE;
             pauseTimer = 0;
+            UpdateWindowTitle(FindWindow(szWindowClass, NULL));
         }
         
         // Update mouse pressed state
@@ -1775,6 +1778,12 @@ void UpdateGame()
         if (gamePaused) {
             return;
         }
+    }
+    
+    // Check for in-game pause (P key) - simple pause without splash screen
+    if (inGamePaused) {
+        gameNeedsRedraw = TRUE;
+        return; // Early return to freeze game state
     }
     
     // Remember old positions to detect movement
@@ -2259,9 +2268,14 @@ void UpdateWindowTitle(HWND hWnd)
     
     // We only want to display the architecture, not the processor type
     
-    // Format the title with CPU architecture and kill count
-    sprintf(titleBuffer, "%s [%s] - Enemies Destroyed: %d", 
-            szAppName, cpuArchStr, currentSessionKills);
+    // Format the title with CPU architecture, kill count, and pause status
+    if (gamePaused || inGamePaused) {
+        sprintf(titleBuffer, "%s [%s] - Enemies Destroyed: %d - PAUSED", 
+                szAppName, cpuArchStr, currentSessionKills);
+    } else {
+        sprintf(titleBuffer, "%s [%s] - Enemies Destroyed: %d", 
+                szAppName, cpuArchStr, currentSessionKills);
+    }
     
     // Set the window title if window handle is valid
     if (hWnd) {
@@ -2443,8 +2457,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         // Update game state
         UpdateGame();
         
-        // When paused, always redraw to show pause screen
-        if (gamePaused || gameNeedsRedraw) {
+        // When paused, always redraw to show pause screen or frozen frame
+        if (gamePaused || inGamePaused || gameNeedsRedraw) {
             InvalidateRect(hwnd, NULL, FALSE);  // FALSE to prevent background erasing (reduce flicker)
         } else {
             // If nothing is happening, sleep to reduce CPU usage
@@ -2619,10 +2633,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 DeleteObject(whiteBrush);
             }
             
-            // If paused, draw pause screen over everything else
+            // If paused with splash screen, draw pause screen over everything else
             if (gamePaused) {
                 DrawPauseScreen(hBufferDC);
             }
+            // If in-game paused (P key), don't draw anything extra - just freeze the current frame
             
             // Always draw crosshair last so it's on top of everything
             DrawCrosshair(hBufferDC);
@@ -2687,6 +2702,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             if (gamePaused) {
                 mouseWasPressed = FALSE;
             }
+            
+            // Update window title to reflect pause state
+            UpdateWindowTitle(hwnd);
+        }
+        
+        // Handle P key for in-game pause (no splash screen)
+        if (wParam == 'P' && gameState.playerActive) {
+            inGamePaused = !inGamePaused;
+            gameNeedsRedraw = TRUE;
+            
+            // Reset mouse pressed state when pausing
+            if (inGamePaused) {
+                mouseWasPressed = FALSE;
+            }
+            
+            // Update window title to reflect pause state
+            UpdateWindowTitle(hwnd);
         }
         
         // Handle Q key to quit during normal gameplay
