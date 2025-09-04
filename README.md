@@ -4,6 +4,7 @@ Remakes of some classic games for NTOS. Aimed mostly at NT RISC architectures. W
 
 ![screenshot](screenshot.png)
 
+PRs with fixes, features and new games welcome!
 
 ## RISC building instructions
 
