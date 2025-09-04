@@ -2,6 +2,9 @@
 
 Remakes of some classic games for NTOS. Aimed mostly at NT RISC architectures. With source code and binaries for all platforms. Alpha, AXP64, ARM, AARCH64, MIPS, PowerPC, Itanium, etc.
 
+![screenshot](screenshot.png)
+
+
 ## RISC building instructions
 
 ### ARM
