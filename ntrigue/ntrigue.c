@@ -130,6 +130,7 @@ int playerDeathSequence = 0;
 int playerDeathTimer = 0;
 int playerDeathExplosionCount = 0;
 int enemiesKilled = 0;
+int gamePaused = 0;
 
 /* GDI objects */
 HINSTANCE hInst;
@@ -348,7 +349,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             if (gameOver) {
                 /* Restart game when clicking anywhere after game over */
                 RestartGame();
-            } else {
+            } else if (!gamePaused) {
                 /* Player shoots laser on left click during gameplay */
                 ShootLaser(playerX, playerY - PLAYER_SIZE / 2, 0);
             }
@@ -361,10 +362,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 return 0;
             }
             
+            /* Toggle pause on P key press */
+            if (wParam == 'P' && !gameOver) {
+                gamePaused = !gamePaused;
+                return 0;
+            }
+            
             if (gameOver) {
                 /* Restart game on any key press after game over */
                 RestartGame();
-            } else if (wParam == VK_SPACE) {
+            } else if (wParam == VK_SPACE && !gamePaused) {
                 /* Player shoots laser on space key during gameplay */
                 ShootLaser(playerX, playerY - PLAYER_SIZE / 2, 0);
             }
@@ -422,6 +429,9 @@ void DrawScene(HDC hdc)
     /* Update window title */
     if (gameStarted && gameOver) {
         wsprintf(windowTitle, "SYSTEM ERROR - Memory_Management_Exception 0x0000000A");
+    } else if (gamePaused) {
+        wsprintf(windowTitle, "NT Rigue [%s] - PAUSED - P to Resume", 
+                cpuArchStr);
     } else {
         wsprintf(windowTitle, "NT Rigue [%s] - ESC/Q to Exit", 
                 cpuArchStr);
@@ -700,6 +710,11 @@ void UpdateGame(void)
     int i, j;
     
     frameCount++;
+    
+    /* Do not update game state when paused, only return */
+    if (gamePaused) {
+        return;
+    }
     
     /* Handle player death sequence */
     if (playerDeathSequence) {

@@ -40,6 +40,7 @@ int score = 0;
 int level = 1;
 int gameOver = 0;
 int gameStarted = 0; /* Flag to indicate game has properly started */
+int gamePaused = 0; /* Flag to indicate game is paused */
 
 HINSTANCE hInst;
 HWND hwnd;
@@ -147,6 +148,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             LaunchMissile(LOWORD(lParam), HIWORD(lParam));
             return 0;
 
+        case WM_KEYDOWN:
+            if (wParam == 'P' || wParam == 'p') {
+                gamePaused = !gamePaused;
+            }
+            return 0;
+
         case WM_DESTROY:
             KillTimer(hwnd, 1);
             SelectObject(hdcBuffer, hbmOldBuffer);
@@ -160,7 +167,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 void GameLoop(HDC hdc)
 {
-    UpdateGame();
+    if (!gamePaused) {
+        UpdateGame();
+    }
     DrawScene(hdc);
 }
 
@@ -175,6 +184,8 @@ void DrawScene(HDC hdc)
     /* Update window title with score and level */
     if (gameStarted && gameOver) {
         wsprintf(windowTitle, "Missile Command - GAME OVER - Final Score: %d", score);
+    } else if (gamePaused) {
+        wsprintf(windowTitle, "Missile Command - PAUSED - Score: %d  Level: %d", score, level);
     } else {
         wsprintf(windowTitle, "Missile Command - Score: %d  Level: %d", score, level);
     }

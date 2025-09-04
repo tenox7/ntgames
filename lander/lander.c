@@ -48,6 +48,7 @@ HBITMAP g_oldBitmap;
 Lander g_lander;
 GameField g_field;
 int g_gameState = STATE_PLAYING;
+int g_paused = 0;  /* Pause state flag */
 int g_starsInitialized = 0;  /* Flag to track if stars have been initialized */
 POINT g_brightStars[100];    /* Brighter stars (will use LTGRAY_BRUSH) */
 POINT g_faintStars[150];     /* Fainter stars (will use GRAY_BRUSH) */
@@ -196,14 +197,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_KEYDOWN:
             switch (wParam) {
                 case VK_UP:
+                case 'W':
+                case 'w':
                     g_lander.thrustOn = 1;
                     break;
 
                 case VK_LEFT:
+                case 'A':
+                case 'a':
                     g_lander.rotatingLeft = 1;
                     break;
 
                 case VK_RIGHT:
+                case 'D':
+                case 'd':
                     g_lander.rotatingRight = 1;
                     break;
 
@@ -212,6 +219,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     if (g_gameState != STATE_PLAYING) {
                         InitGame();
                         InvalidateRect(hwnd, NULL, TRUE);
+                    }
+                    break;
+
+                case 'P':
+                case 'p':
+                    /* Toggle pause */
+                    g_paused = !g_paused;
+                    if (g_paused) {
+                        SetWindowText(hwnd, "Moon Lander - PAUSED");
+                    } else {
+                        SetWindowText(hwnd, "Moon Lander");
                     }
                     break;
 
@@ -227,14 +245,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_KEYUP:
             switch (wParam) {
                 case VK_UP:
+                case 'W':
+                case 'w':
                     g_lander.thrustOn = 0;
                     break;
                     
                 case VK_LEFT:
+                case 'A':
+                case 'a':
                     g_lander.rotatingLeft = 0;
                     break;
                     
                 case VK_RIGHT:
+                case 'D':
+                case 'd':
                     g_lander.rotatingRight = 0;
                     break;
             }
@@ -370,7 +394,7 @@ void InitGame(void) {
 
 /* Main game loop */
 void GameLoop(void) {
-    if (g_gameState == STATE_PLAYING) {
+    if (g_gameState == STATE_PLAYING && !g_paused) {
         UpdateGameState();
         CheckCollision();
     }
