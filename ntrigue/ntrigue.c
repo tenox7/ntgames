@@ -218,10 +218,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         GetSystemInfo(&sysInfo);
         
         /* Determine CPU architecture - use arch.h */
-        if (sysInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_UNKNOWN) {
+        if (processorArchitecture(&sysInfo) == PROCESSOR_ARCHITECTURE_UNKNOWN) {
             lstrcpy(cpuArchStr, PROCESSOR_ARCHITECTURE_STR_UNKNOWN);
-        } else if (sysInfo.wProcessorArchitecture < sizeof(ProcessorArchitectureNames)/sizeof(ProcessorArchitectureNames[0])) {
-            lstrcpy(cpuArchStr, ProcessorArchitectureNames[sysInfo.wProcessorArchitecture]);
+        } else if (processorArchitecture(&sysInfo) < sizeof(ProcessorArchitectureNames)/sizeof(ProcessorArchitectureNames[0])) {
+            lstrcpy(cpuArchStr, ProcessorArchitectureNames[processorArchitecture(&sysInfo)]);
         } else {
             lstrcpy(cpuArchStr, PROCESSOR_ARCHITECTURE_STR_UNKNOWN);
         }

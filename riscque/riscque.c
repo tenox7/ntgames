@@ -208,7 +208,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SYSTEM_INFO tempSysInfo;
         
         GetSystemInfo(&tempSysInfo);
-        wsprintf(debugTitle, "RISCque - CPU Type ID: %d", tempSysInfo.wProcessorArchitecture);
+        wsprintf(debugTitle, "RISCque - CPU Type ID: %d", processorArchitecture(&tempSysInfo));
         
         /* Create optimized window - disable resize and maximize for better performance */
         hwnd = CreateWindow("RISCqueClass", debugTitle,
@@ -263,7 +263,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         GetSystemInfo(&sysInfo);
         
         /* Select player ship based on architecture */
-        switch (sysInfo.wProcessorArchitecture) {
+        switch (processorArchitecture(&sysInfo)) {
             case PROCESSOR_ARCHITECTURE_ARM:
                 shipId = IDB_SHIP_ARM;
                 break;
@@ -356,7 +356,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 GetSystemInfo(&dbgSysInfo);
                 
                 /* Double-check with the same rules - only allow specific architectures */
-                switch (dbgSysInfo.wProcessorArchitecture) {
+                switch (processorArchitecture(&dbgSysInfo)) {
                     /* Explicitly allowed architectures */
                     case 1:  /* MIPS */
                     case 2:  /* Alpha */
@@ -1526,13 +1526,13 @@ void CheckProcessorType(void)
     GetSystemInfo(&sysInfo);
     
     /* Store raw architecture ID */
-    wsprintf(procTypeStr, "CPU ID: %d", sysInfo.wProcessorArchitecture);
+    wsprintf(procTypeStr, "CPU ID: %d", processorArchitecture(&sysInfo));
     
     /* Immediately make sure we initialize cpuArchStr to prevent empty string */
     lstrcpy(cpuArchStr, "INITIALIZED");
     
     /* Hard-code architecture strings based on ID for reliability */
-    switch (sysInfo.wProcessorArchitecture) {
+    switch (processorArchitecture(&sysInfo)) {
         case PROCESSOR_ARCHITECTURE_INTEL:  /* 0 */
             lstrcpy(cpuArchStr, "x86");
             break;
@@ -1564,13 +1564,13 @@ void CheckProcessorType(void)
             lstrcpy(cpuArchStr, "ARM64");
             break;
         default:
-            wsprintf(tempStr, "CPU-%d", sysInfo.wProcessorArchitecture);
+            wsprintf(tempStr, "CPU-%d", processorArchitecture(&sysInfo));
             lstrcpy(cpuArchStr, tempStr);
             break;
     }
     
     /* Use switch for better clarity on allowed architectures */
-    switch (sysInfo.wProcessorArchitecture) {
+    switch (processorArchitecture(&sysInfo)) {
         /* Explicitly allowed architectures */
         case 1:  /* MIPS */
         case 2:  /* Alpha */
@@ -1664,7 +1664,7 @@ void DrawBSODScreen(HDC hdc)
                  "*** STOP: 0x0000007B (0xC0000418,0xFFFFFFFF,0x00000000,0x00000000)\r\n"
                  "*** CPU ID: %d, TYPE: %s\r\n"
                  "*** RISCQUE.SYS - Address C0011E36 base at C0010000, DateStamp 3d6dd67e",
-                 sysInfo.wProcessorArchitecture, cpuArchStr);
+                 processorArchitecture(&sysInfo), cpuArchStr);
         
         DrawText(hdc, techInfo, -1, &infoRect, DT_LEFT);
     }

@@ -9,7 +9,7 @@ genlevels.exe: genlevels.c
 levels.h levels.rc: 
 
 RISCoban.exe: RISCoban.obj RISCoban.res
-	link.exe /nologo /subsystem:windows RISCoban.obj RISCoban.res user32.lib gdi32.lib
+	link.exe /nologo /subsystem:windows RISCoban.obj RISCoban.res user32.lib gdi32.lib kernel32.lib
 
 RISCoban.obj: RISCoban.c levels.h
 	cl.exe /nologo /c /O2 /W3 RISCoban.c

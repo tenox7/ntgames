@@ -12,6 +12,14 @@ PRs with fixes, features and new games welcome!
 
 Only available in MSVC (2022), `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsamd64_armXXX.bat`.
 
+### PINT (Windows NT on the Raspberry Pi)
+
+`./pint.sh` builds all the games with the PINT SDKs in Docker
+([tenox7/pint35sdk](https://hub.docker.com/r/tenox7/pint35sdk) for PINT 3.5,
+[tenox7/pint40sdk](https://hub.docker.com/r/tenox7/pint40sdk) for PINT 4.0;
+their page tells how to set them up once).
+The exes go to `out/pint35` and `out/pint40`, and into one zip for each, as in the releases.
+
 ### IA64
 
 Win7 SDK only (not Visual Studio), use `setenv /ia64 /2008 /release`

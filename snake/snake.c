@@ -52,7 +52,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wndclass.lpszClassName = szAppName;
 
     if (!RegisterClass(&wndclass)) {
-        MessageBox(NULL, TEXT("This program requires Windows NT!"), szAppName, MB_ICONERROR);
+        MessageBox(NULL, TEXT("This program requires Windows NT!"), szAppName, MB_ICONSTOP);
         return 0;
     }
 

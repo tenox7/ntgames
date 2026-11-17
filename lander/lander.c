@@ -86,7 +86,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.lpszClassName = "MoonLanderClass";
     
     if (!RegisterClass(&wc)) {
-        MessageBox(NULL, "Failed to register window class", "Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, "Failed to register window class", "Error", MB_OK | MB_ICONSTOP);
         return 1;
     }
     
@@ -104,7 +104,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     );
     
     if (g_hwnd == NULL) {
-        MessageBox(NULL, "Failed to create window", "Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, "Failed to create window", "Error", MB_OK | MB_ICONSTOP);
         return 1;
     }
     
@@ -117,7 +117,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     
     /* Set up game timer */
     if (SetTimer(g_hwnd, 1, FRAME_DELAY, NULL) == 0) {
-        MessageBox(NULL, "Failed to create timer", "Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, "Failed to create timer", "Error", MB_OK | MB_ICONSTOP);
         return 1;
     }
     

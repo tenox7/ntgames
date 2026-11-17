@@ -2,6 +2,9 @@
    Written by Claude
    Public Domain          */
 #include <windows.h>
+#ifndef WS_EX_CLIENTEDGE
+#define WS_EX_CLIENTEDGE 0      /* NT 3.5 (the PINT 3.5 SDK) has no 3D edges */
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <io.h>      /* For _findfirst, _findnext */
@@ -145,7 +148,7 @@ BOOL LoadLevel(const char *levelName)
 
     /* Verify level index is valid */
     if (levelIndex < 0 || levelIndex >= numLevels) {
-        MessageBox(NULL, "Invalid level index!", "Error", MB_ICONERROR | MB_OK);
+        MessageBox(NULL, "Invalid level index!", "Error", MB_ICONSTOP | MB_OK);
         return FALSE;
     }
 
@@ -160,19 +163,19 @@ BOOL LoadLevel(const char *levelName)
     hResInfo = FindResource(NULL, MAKEINTRESOURCE(3000 + levelIndex), RT_RCDATA);
 
     if (!hResInfo) {
-        MessageBox(NULL, "Failed to find level resource!", "Error", MB_ICONERROR | MB_OK);
+        MessageBox(NULL, "Failed to find level resource!", "Error", MB_ICONSTOP | MB_OK);
         return FALSE;
     }
 
     hResData = LoadResource(NULL, hResInfo);
     if (!hResData) {
-        MessageBox(NULL, "Failed to load level resource!", "Error", MB_ICONERROR | MB_OK);
+        MessageBox(NULL, "Failed to load level resource!", "Error", MB_ICONSTOP | MB_OK);
         return FALSE;
     }
 
     pData = LockResource(hResData);
     if (!pData) {
-        MessageBox(NULL, "Failed to lock level resource!", "Error", MB_ICONERROR | MB_OK);
+        MessageBox(NULL, "Failed to lock level resource!", "Error", MB_ICONSTOP | MB_OK);
         return FALSE;
     }
 
@@ -181,7 +184,7 @@ BOOL LoadLevel(const char *levelName)
     /* Create a null-terminated copy of the resource data */
     levelData = (char *)malloc(resSize + 1);
     if (!levelData) {
-        MessageBox(NULL, "Out of memory!", "Error", MB_ICONERROR | MB_OK);
+        MessageBox(NULL, "Out of memory!", "Error", MB_ICONSTOP | MB_OK);
         return FALSE;
     }
 
@@ -237,7 +240,7 @@ BOOL LoadLevel(const char *levelName)
     /* Create a fresh null-terminated copy of the resource data */
     levelData = (char *)malloc(resSize + 1);
     if (!levelData) {
-        MessageBox(NULL, "Out of memory!", "Error", MB_ICONERROR | MB_OK);
+        MessageBox(NULL, "Out of memory!", "Error", MB_ICONSTOP | MB_OK);
         return FALSE;
     }
 
@@ -865,7 +868,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-    WNDCLASSEX wc;
+    WNDCLASS wc;
     HWND hwnd;
     MSG Msg;
 
@@ -885,7 +888,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         LoadLevel(levelFiles[0]);
     } else {
         /* Fallback if no levels found */
-        MessageBox(NULL, "No level files found in 'levels' directory!", "Warning", MB_ICONWARNING | MB_OK);
+        MessageBox(NULL, "No level files found in 'levels' directory!", "Warning", MB_ICONEXCLAMATION | MB_OK);
         /* Create a dummy level in memory */
         strcpy(currentLevel, "No Levels");
         levelWidth = 5;
@@ -893,7 +896,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     /* Register the Window Class */
-    wc.cbSize        = sizeof(WNDCLASSEX);
     wc.style         = CS_HREDRAW | CS_VREDRAW; /* Add redraw styles for better refresh */
     wc.lpfnWndProc   = WndProc;
     wc.cbClsExtra    = 0;
@@ -904,9 +906,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
     wc.lpszMenuName  = NULL;
     wc.lpszClassName = "SokobanClass";
-    wc.hIconSm       = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SOKOBAN));
 
-    if(!RegisterClassEx(&wc))
+    if(!RegisterClass(&wc))
     {
         MessageBox(NULL, "Window Registration Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
         return 0;

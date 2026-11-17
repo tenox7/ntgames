@@ -9,7 +9,7 @@ genlevels.exe: genlevels.c
 levels.h levels.rc: 
 
 sokoban.exe: sokoban.obj sokoban.res
-	link.exe /nologo /subsystem:windows sokoban.obj sokoban.res user32.lib gdi32.lib
+	link.exe /nologo /subsystem:windows sokoban.obj sokoban.res user32.lib gdi32.lib kernel32.lib
 
 sokoban.obj: sokoban.c levels.h
 	cl.exe /nologo /c /O2 /W3 sokoban.c
